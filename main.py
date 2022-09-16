@@ -7,21 +7,37 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 import morton
+import datetime
 import sys
 
 
-def plot_Values(dff, geofence):
+def plot_Values(df, dff, geofence):
     fig, ax = plt.subplots(4, gridspec_kw={'height_ratios': [3, 3, 3, 1]})
 
-    dff.plot(x='lon', y='lat', ax=ax[0])
-    dff.plot(x='ts', y=['accel_lon', 'accel_trans', 'accel_down'], ax=ax[1])
+    df.plot(x='lon', y='lat', ax=ax[0])
+    df.plot(x='ts', y=['accel_lon', 'accel_trans', 'accel_down'], ax=ax[1])
 
-    dff.plot(kind='scatter', x='accel_lon', y='accel_trans', color=dff['ts'], ax=ax[2])
+    maneuver_start = dff['ts'][0]
+    maneuver_end = 0
+    maneuver_cnt = dff[((dff['diff_to_prev'] > 5000000) | (dff['diff_to_prev'].isna() == True))].index
+    print(maneuver_cnt)
+
+    for i in maneuver_cnt:
+        if i > 0:
+            maneuver_end = int(dff["ts"][i - 1])
+            ax[1].add_patch(Rectangle((maneuver_start, -4), maneuver_end - maneuver_start, 12, fill=False, color='red', lw=2))
+            maneuver_start = dff['ts'][i]
+
+        if i == maneuver_cnt[-1]:
+            maneuver_end = int(df["ts"][df.index[-1]]) # TODO: das ist noch nciht ganz richtig
+            ax[1].add_patch(Rectangle((maneuver_start, -4), maneuver_end - maneuver_start, 12, fill=False, color='red', lw=2))
+
+    df.plot(kind='scatter', x='accel_lon', y='accel_trans', color=df['ts'], ax=ax[2])
     ax[2].add_patch(Rectangle((geofence[0][0], geofence[0][1]), geofence[1][0]-geofence[0][0],
                               geofence[1][1] - geofence[0][1], fill=False, color='red', lw=2))
 
-    min = dff['morton'].min()
-    max = dff['morton'].max()
+    min = df['morton'].min()
+    max = df['morton'].max()
     # min = 12000000000
     # max = 18000000000
     min = 0
@@ -35,17 +51,23 @@ def plot_Values(dff, geofence):
     plt.show()
 ################################################################
 
-def filter_Values(dff):
+def filter_Values(df, geofence, fence_x, fence_y):
 
-    ts = 1646666599000000
-    off = 204
-    ts = ts + (off * 1000000)
-    # dff = df[(df['ts'] > ts) & (df['ts'] < ts + 4500000)]  # 10000000
-    # dff = df[(df['ts'] > 1646666563800000) & (df['ts'] < 1646666564800000)]
+    dff = df[((df[fence_x] > geofence[0][0]) & # linke Grenze
+                (df[fence_x] < geofence[1][0]) & # rechte Grenze
+                (df[fence_y] > geofence[0][1]) & # untere Grenze
+                (df[fence_y] < geofence[1][1]))] # obere Grenze
 
-    # dff = df[(df['accel_lon'] > 140000)]
-    # dff = df[(df['morton'] > 26776019010)]
-    dff = df
+    dff = dff.sort_values(by='ts').reset_index()
+    dff['diff_to_prev'] = dff['ts'].diff()
+
+
+    cnt_maneuver = len(dff[dff['diff_to_prev'] > 5000000].index) + 1
+
+    date = dff['ts'].min() / 1000000
+    dt = datetime.datetime.fromtimestamp(date, datetime.timezone(datetime.timedelta(hours=1)))
+
+    print("First Maneuver detected at ", dt, " we detect ",cnt_maneuver, "maneuvers")
 
     return dff
 
@@ -87,7 +109,7 @@ def generate_ts(df):
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    df = pd.read_csv('../Data/Ausschnitte/Hard_Braking/braking_cut.csv', sep=';',
+    df = pd.read_csv('../Data/Ausschnitte/Hard_Braking/braking_cut_8_brakes.csv', sep=';',
                      usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed',
                               'accel_lon', 'accel_trans', 'accel_down'])
     # df.rename(columns = {'timestamp:10881:<lon>':'ts', 'accel_lon:10881:<double>':'accel_lon', 'accel_trans:10881:<double>':'accel_trans', 'accel_down:10881:<double>':'accel_down'}, inplace = True)
@@ -97,7 +119,9 @@ if __name__ == '__main__':
 
     ################################################################
 
-    geofence = [[4.2, -1], [5.8, 1]]
+    geofence = [[4.2, -3], [10, 3]]
+    fence_x = 'accel_lon'
+    fence_y = 'accel_trans'
 
     ################################################################
 
@@ -109,10 +133,10 @@ if __name__ == '__main__':
 
     ################################################################
 
-    dff = filter_Values(df)
+    dff = filter_Values(df, geofence, fence_x=fence_x, fence_y=fence_y)
 
     ################################################################
-    plot_Values(dff, geofence)
+    plot_Values(df, dff, geofence)
 
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
