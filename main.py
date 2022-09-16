@@ -14,26 +14,31 @@ import sys
 def plot_Values(df, dff, geofence):
     fig, ax = plt.subplots(4, gridspec_kw={'height_ratios': [3, 3, 3, 1]})
 
-    df.plot(x='lon', y='lat', ax=ax[0])
+    df.plot(x='lon', y='lat', ax=ax[0], color = 'blue')
+    dff.plot.scatter(x='lon', y='lat', ax=ax[0], color = 'red')
+
     df.plot(x='ts', y=['accel_lon', 'accel_trans', 'accel_down'], ax=ax[1])
+    accelBoxes = True
+    if accelBoxes == True:
+        maneuver_start = dff['ts'][0]
+        maneuver_end = 0
+        maneuver_cnt = dff[((dff['diff_to_prev'] > 5000000) | (dff['diff_to_prev'].isna() == True))].index
 
-    maneuver_start = dff['ts'][0]
-    maneuver_end = 0
-    maneuver_cnt = dff[((dff['diff_to_prev'] > 5000000) | (dff['diff_to_prev'].isna() == True))].index
-    print(maneuver_cnt)
+        for i in maneuver_cnt:
+            if i > 0:
+                maneuver_end = int(dff["ts"][i - 1])
+                ax[1].add_patch(Rectangle((maneuver_start, -4), maneuver_end - maneuver_start, 12, fill=False, color='red', lw=2))
+                maneuver_start = dff['ts'][i]
 
-    for i in maneuver_cnt:
-        if i > 0:
-            maneuver_end = int(dff["ts"][i - 1])
-            ax[1].add_patch(Rectangle((maneuver_start, -4), maneuver_end - maneuver_start, 12, fill=False, color='red', lw=2))
-            maneuver_start = dff['ts'][i]
+            if i == maneuver_cnt[-1]:
+                maneuver_end = int(dff["ts"][dff.index[-1]])
+                ax[1].add_patch(Rectangle((maneuver_start, -4), maneuver_end - maneuver_start, 12, fill=False, color='red', lw=2))
 
-        if i == maneuver_cnt[-1]:
-            maneuver_end = int(df["ts"][df.index[-1]]) # TODO: das ist noch nciht ganz richtig
-            ax[1].add_patch(Rectangle((maneuver_start, -4), maneuver_end - maneuver_start, 12, fill=False, color='red', lw=2))
+    else:
+        dff.plot.scatter(x='ts', y='accel_lon', color='red', ax=ax[1])
 
     df.plot(kind='scatter', x='accel_lon', y='accel_trans', color=df['ts'], ax=ax[2])
-    ax[2].add_patch(Rectangle((geofence[0][0], geofence[0][1]), geofence[1][0]-geofence[0][0],
+    ax[2].add_patch(Rectangle((geofence[0][0], geofence[0][1]), geofence[1][0] - geofence[0][0],
                               geofence[1][1] - geofence[0][1], fill=False, color='red', lw=2))
 
     min = df['morton'].min()
@@ -43,11 +48,12 @@ def plot_Values(df, dff, geofence):
     min = 0
     max = 30000000000
 
-    ax[3].hist(dff['morton'], bins=400)
+    ax[3].hist(df['morton'], bins=400, color='blue')
+    ax[3].hist(dff['morton'], bins=400, color='red')
     ax[3].set_xlim(min, max)
     ax[3].set_ylim(0, 1)
 
-    # fig.tight_layout()
+    fig.tight_layout()
     plt.show()
 ################################################################
 
