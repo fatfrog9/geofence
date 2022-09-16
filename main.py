@@ -36,6 +36,7 @@ def plot_Values(df, dff, geofence):
 
     else:
         dff.plot.scatter(x='ts', y='accel_lon', color='red', ax=ax[1])
+        dff.plot.scatter(x='ts', y='accel_trans', color='red', ax=ax[1])
 
     df.plot(kind='scatter', x='accel_lon', y='accel_trans', color=df['ts'], ax=ax[2])
     # ax[2].add_patch(Rectangle((geofence[0][0], geofence[0][1]), geofence[1][0] - geofence[0][0],geofence[1][1] - geofence[0][1], fill=False, color='red', lw=2))
@@ -267,7 +268,7 @@ if __name__ == '__main__':
 
     ################################################################
 
-    geofence = [[2, -3], [10, 3]]
+    geofence = [[0.5, -4], [2, -1]]
     fence_x = 'accel_lon'
     fence_y = 'accel_trans'
 
@@ -282,7 +283,9 @@ if __name__ == '__main__':
     ################################################################
 
     # dff = filter_Values(df, geofence, fence_x=fence_x, fence_y=fence_y)
-    dff = filter_Morton(df, 25000000000, 30000000000)
+    # dff = filter_Morton(df, 25000000000, 30000000000)
+    # dff = filter_Morton(df, 10000000000, 13000000000) # starke Beschleunigung
+    dff = filter_Morton(df, 14000000000, 14800000000) # linkskurve Bremsen
 
     ################################################################
 
