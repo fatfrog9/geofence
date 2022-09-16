@@ -18,7 +18,7 @@ def plot_Values(df, dff, geofence):
     dff.plot.scatter(x='lon', y='lat', ax=ax[0], color = 'red')
 
     df.plot(x='ts', y=['accel_lon', 'accel_trans', 'accel_down'], ax=ax[1])
-    accelBoxes = True
+    accelBoxes = False
     if accelBoxes == True:
         maneuver_start = dff['ts'][0]
         maneuver_end = 0
@@ -38,8 +38,8 @@ def plot_Values(df, dff, geofence):
         dff.plot.scatter(x='ts', y='accel_lon', color='red', ax=ax[1])
 
     df.plot(kind='scatter', x='accel_lon', y='accel_trans', color=df['ts'], ax=ax[2])
-    ax[2].add_patch(Rectangle((geofence[0][0], geofence[0][1]), geofence[1][0] - geofence[0][0],
-                              geofence[1][1] - geofence[0][1], fill=False, color='red', lw=2))
+    # ax[2].add_patch(Rectangle((geofence[0][0], geofence[0][1]), geofence[1][0] - geofence[0][0],geofence[1][1] - geofence[0][1], fill=False, color='red', lw=2))
+    dff.plot(kind='scatter', x='accel_lon', y='accel_trans', color='red', ax=ax[2])
 
     min = df['morton'].min()
     max = df['morton'].max()
@@ -47,9 +47,10 @@ def plot_Values(df, dff, geofence):
     # max = 18000000000
     min = 0
     max = 30000000000
+    bins = 400
 
-    ax[3].hist(df['morton'], bins=400, color='blue')
-    ax[3].hist(dff['morton'], bins=400, color='red')
+    ax[3].hist(df['morton'], bins=bins, range=(min, max), color='blue')
+    ax[3].hist(dff['morton'], bins=bins, range=(min, max), color='red')
     ax[3].set_xlim(min, max)
     ax[3].set_ylim(0, 1)
 
@@ -74,6 +75,26 @@ def filter_Values(df, geofence, fence_x, fence_y):
     dt = datetime.datetime.fromtimestamp(date, datetime.timezone(datetime.timedelta(hours=1)))
 
     print("First Maneuver detected at ", dt, " we detect ",cnt_maneuver, "maneuvers")
+
+    return dff
+
+################################################################
+
+def filter_Morton(df, range_min, range_max):
+
+    dff = df[((df['morton'] > range_min) &  # linke Grenze
+              (df['morton'] < range_max))] # rechte Grenze
+
+
+    dff = dff.sort_values(by='ts').reset_index()
+    dff['diff_to_prev'] = dff['ts'].diff()
+
+    cnt_maneuver = len(dff[dff['diff_to_prev'] > 5000000].index) + 1
+
+    date = dff['ts'].min() / 1000000
+    dt = datetime.datetime.fromtimestamp(date, datetime.timezone(datetime.timedelta(hours=1)))
+
+    print("First Maneuver detected at ", dt, " we detect ", cnt_maneuver, "maneuvers")
 
     return dff
 
@@ -113,6 +134,127 @@ def generate_ts(df):
 
 ################################################################
 
+def search_Morton(geofence, df_array, curve, m, ax, resolution):
+    A = geofence[0]
+    C = geofence[1]
+    B = [A[0], C[1]]
+    D = [A[1], C[0]]
+
+    search_space = [m.pack(A[0], A[1]), m.pack(C[0], C[1])]
+
+    #ax.add_patch(Rectangle((A[0]-0.25, A[1]-0.25), C[0]-A[0]+0.5, C[1]-A[1]+0.5, fill=False, color='red', lw = 2))
+
+    #df_array[(df_array.morton >= search_space[0]) & (df_array.morton <= search_space[1])].sort_values(by='morton').reset_index().plot(x='x', y='y', marker="o", ax=ax, label="SearchSpace")
+
+    search_df = df_array[(df_array.morton >= search_space[0]) & (df_array.morton <= search_space[1])]
+
+    min = 0
+    max = (2**resolution)-1
+    search_df = identifyNonRelvantAreas(m, geofence, search_df, min, min, max, max)
+    search_df.sort_values(by='morton').reset_index().plot(x='x', y='y', marker="o", ax=ax, label="SearchSpace")
+
+    geofence_area = (C[0] - A[0] + 1) * (C[1] - A[1] + 1)
+    search_area = len(search_df.axes[0])
+    precision = geofence_area / (geofence_area + (search_area - geofence_area))
+
+    print("Search space for geofence:", geofence, "requires search between", search_space[0], "and", search_space[1], "requires", search_area, "queries to search ", geofence_area, "entries." )
+    #print("Precision of", round(precision, 3))
+
+    return search_df
+
+################################################################
+
+def identifyNonRelvantAreas(m, geofence, search_df, min_value_x, min_value_y, max_value_x, max_value_y):
+
+    if (m.pack(max_value_x, max_value_y) - m.pack(min_value_x, min_value_y)) <=3:
+        return search_df
+
+    A = geofence[0]
+    C = geofence[1]
+
+    half_value_x = int(((max_value_x - min_value_x) / 2) + 0.5 + min_value_x)
+    half_value_y = int(((max_value_y - min_value_y) / 2) + 0.5 + min_value_y)
+
+    # search_df = df_array[['x', 'y', 'morton']]
+
+    Q1 = False
+    Q2 = False
+    Q3 = False
+    Q4 = False
+
+    if (A[0] < half_value_x) & (A[1] < half_value_y) & (C[0] >= half_value_x) & (C[1] >= half_value_y):
+        # alle
+        Q1 = True
+        Q2 = True
+        Q3 = True
+        Q4 = True
+    elif (A[0] < half_value_x) & (A[1] >= half_value_y) & (C[0] >= half_value_x) & (C[1] >= half_value_y):
+        # oben beide
+        Q3 = True
+        Q4 = True
+    elif (A[0] < half_value_x) & (A[1] < half_value_y) & (C[0] >= half_value_x) & (C[1] < half_value_y):
+        # unten beide
+        Q1 = True
+        Q2 = True
+    elif (A[0] < half_value_x) & (A[1] < half_value_y) & (C[0] < half_value_x) & (C[1] >= half_value_y):
+        # links beide
+        Q1 = True
+        Q3 = True
+    elif (A[0] >= half_value_x) & (A[1] < half_value_y) & (C[0] >= half_value_x) & (C[1] >= half_value_y):
+        # rechts beide
+        Q2 = True
+        Q4 = True
+    elif (A[0] < half_value_x) & (A[1] >= half_value_y) & (C[0] < half_value_x) & (C[1] >= half_value_y):
+        # oben links
+        Q3 = True
+    elif (A[0] < half_value_x) & (A[1] < half_value_y) & (C[0] < half_value_x) & (C[1] < half_value_y):
+        # unten links
+        Q1 = True
+    elif (A[0] >= half_value_x) & (A[1] < half_value_y) & (C[0] >= half_value_x) & (C[1] < half_value_y):
+        # unten rechts
+        Q2 = True
+    elif (A[0] >= half_value_x) & (A[1] >= half_value_y) & (C[0] >= half_value_x) & (C[1] >= half_value_y):
+        # oben rechts
+        Q4 = True
+    else:
+        #irgendwas stimmt mit der eingabe nicht
+        sys.exit("Geofence is incorrect; please check!")
+
+    Q1_range = (m.pack(min_value_x, min_value_y), m.pack((half_value_x-1), (half_value_y-1)))
+    Q2_range = (m.pack(half_value_x, min_value_y), m.pack(max_value_x, (half_value_y - 1)))
+    Q3_range = (m.pack(min_value_x, half_value_y), m.pack((half_value_x - 1), max_value_y))
+    Q4_range = (m.pack(half_value_x, half_value_y), m.pack(max_value_x, max_value_y))
+
+
+    if Q1 == False:
+        for i in range(Q1_range[0], Q1_range[1]+1):
+            search_df = search_df[search_df['morton'] != i]
+    else:
+        search_df = identifyNonRelvantAreas(m, geofence, search_df, min_value_x=min_value_x, min_value_y=min_value_y,
+                                            max_value_x=half_value_x-1, max_value_y=half_value_y-1)
+    if Q2 == False:
+        for i in range(Q2_range[0], Q2_range[1]+1):
+            search_df = search_df[search_df['morton'] != i]
+    else:
+        search_df = identifyNonRelvantAreas(m, geofence, search_df, min_value_x=half_value_x, min_value_y=min_value_y,
+                                            max_value_x=max_value_x, max_value_y=half_value_y - 1)
+    if Q3 == False:
+        for i in range(Q3_range[0], Q3_range[1]+1):
+            search_df = search_df[search_df['morton'] != i]
+    else:
+        search_df = identifyNonRelvantAreas(m, geofence, search_df, min_value_x=min_value_x, min_value_y=half_value_y,
+                                            max_value_x=half_value_x - 1, max_value_y=max_value_y)
+    if Q4 == False:
+        for i in range(Q4_range[0], Q4_range[1]+1):
+            search_df = search_df[search_df['morton'] != i]
+    else:
+        search_df = identifyNonRelvantAreas(m, geofence, search_df, min_value_x=half_value_x, min_value_y=half_value_y,
+                                            max_value_x=max_value_x, max_value_y=max_value_y)
+
+    return search_df
+
+################################################################
+
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     df = pd.read_csv('../Data/Ausschnitte/Hard_Braking/braking_cut_8_brakes.csv', sep=';',
@@ -125,7 +267,7 @@ if __name__ == '__main__':
 
     ################################################################
 
-    geofence = [[4.2, -3], [10, 3]]
+    geofence = [[2, -3], [10, 3]]
     fence_x = 'accel_lon'
     fence_y = 'accel_trans'
 
@@ -135,11 +277,16 @@ if __name__ == '__main__':
 
     ################################################################
 
-    calc_Morton(df=df, dimension=2, bits=18)
+    df, m = calc_Morton(df=df, dimension=2, bits=18)
 
     ################################################################
 
-    dff = filter_Values(df, geofence, fence_x=fence_x, fence_y=fence_y)
+    # dff = filter_Values(df, geofence, fence_x=fence_x, fence_y=fence_y)
+    dff = filter_Morton(df, 25000000000, 30000000000)
+
+    ################################################################
+
+
 
     ################################################################
     plot_Values(df, dff, geofence)
