@@ -101,6 +101,9 @@ def filter_Morton(df, range_min, range_max):
 
 ################################################################
 
+
+################################################################
+
 def calc_Morton(df, dimension, bits):
 
     offset = 10
@@ -135,9 +138,16 @@ def generate_ts(df):
 
 ################################################################
 
-def search_Morton(geofence, df_array, curve, m, ax, resolution):
+def search_Morton(geofence, df_array, curve, m, resolution):
+    offset = 10
+    faktor_multiply = 10000
+
     A = geofence[0]
+    A[0] = int((A[0] + offset) * faktor_multiply)
+    A[1] = int((A[1] + offset) * faktor_multiply)
     C = geofence[1]
+    C[0] = int((C[0] + offset) * faktor_multiply)
+    C[1] = int((C[1] + offset) * faktor_multiply)
     B = [A[0], C[1]]
     D = [A[1], C[0]]
 
@@ -258,7 +268,7 @@ def identifyNonRelvantAreas(m, geofence, search_df, min_value_x, min_value_y, ma
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    df = pd.read_csv('../Data/Ausschnitte/Hard_Braking/braking_cut_8_brakes.csv', sep=';',
+    df = pd.read_csv('../Data/Ausschnitte/opendlv.device.gps.pos.Grp1Data-0.csv', sep=';',
                      usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed',
                               'accel_lon', 'accel_trans', 'accel_down'])
     # df.rename(columns = {'timestamp:10881:<lon>':'ts', 'accel_lon:10881:<double>':'accel_lon', 'accel_trans:10881:<double>':'accel_trans', 'accel_down:10881:<double>':'accel_down'}, inplace = True)
@@ -277,19 +287,19 @@ if __name__ == '__main__':
     df = generate_ts(df)
 
     ################################################################
-
-    df, m = calc_Morton(df=df, dimension=2, bits=18)
+    bits = 18
+    df, m = calc_Morton(df=df, dimension=2, bits=bits)
 
     ################################################################
 
     # dff = filter_Values(df, geofence, fence_x=fence_x, fence_y=fence_y)
-    # dff = filter_Morton(df, 25000000000, 30000000000)
+    dff = filter_Morton(df, 25000000000, 30000000000) # stark Bremsen
     # dff = filter_Morton(df, 10000000000, 13000000000) # starke Beschleunigung
-    dff = filter_Morton(df, 14000000000, 14800000000) # linkskurve Bremsen
+    # dff = filter_Morton(df, 14000000000, 14800000000) # linkskurve Bremsen
 
     ################################################################
 
-
+    # search_Morton(geofence, df, 'morton', m, bits)
 
     ################################################################
     plot_Values(df, dff, geofence)
