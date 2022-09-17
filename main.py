@@ -9,6 +9,7 @@ from matplotlib.patches import Rectangle
 import morton
 import datetime
 import sys
+import time
 
 
 def plot_Values(df, dff, geofence):
@@ -268,7 +269,11 @@ def identifyNonRelvantAreas(m, geofence, search_df, min_value_x, min_value_y, ma
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    df = pd.read_csv('../Data/Ausschnitte/opendlv.device.gps.pos.Grp1Data-0.csv', sep=';',
+
+#    df = pd.read_csv('../Data/Ausschnitte/opendlv.device.gps.pos.Grp1Data-0.csv', sep=';',
+#                     usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed',
+#                              'accel_lon', 'accel_trans', 'accel_down'])
+    df = pd.read_csv('../Data/Ausschnitte/Hard_Braking/braking_cut_8_brakes.csv', sep=';',
                      usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed',
                               'accel_lon', 'accel_trans', 'accel_down'])
     # df.rename(columns = {'timestamp:10881:<lon>':'ts', 'accel_lon:10881:<double>':'accel_lon', 'accel_trans:10881:<double>':'accel_trans', 'accel_down:10881:<double>':'accel_down'}, inplace = True)
@@ -278,9 +283,6 @@ if __name__ == '__main__':
 
     ################################################################
 
-    geofence = [[0.5, -4], [2, -1]]
-    fence_x = 'accel_lon'
-    fence_y = 'accel_trans'
 
     ################################################################
 
@@ -292,14 +294,22 @@ if __name__ == '__main__':
 
     ################################################################
 
+    time_filter_start = time.time()
+
+    geofence = [[0.5, -4], [2, -1]]
+    fence_x = 'accel_lon'
+    fence_y = 'accel_trans'
+
     # dff = filter_Values(df, geofence, fence_x=fence_x, fence_y=fence_y)
     dff = filter_Morton(df, 25000000000, 30000000000) # stark Bremsen
     # dff = filter_Morton(df, 10000000000, 13000000000) # starke Beschleunigung
     # dff = filter_Morton(df, 14000000000, 14800000000) # linkskurve Bremsen
 
+    time_filter_end = time.time()
+    print("Time to set geofence and filter with threshold value", len(df.index), "rows:", round(time_filter_end-time_filter_start, 5), "s")
     ################################################################
 
-    # search_Morton(geofence, df, 'morton', m, bits)
+    search_Morton(geofence, df, 'morton', m, bits)
 
     ################################################################
     plot_Values(df, dff, geofence)
