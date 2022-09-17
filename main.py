@@ -163,7 +163,7 @@ def search_Morton(geofence, df_array, curve, m, resolution):
     min = 0
     max = (2**resolution)-1
     search_df = identifyNonRelvantAreas(m, geofence, search_df, min, min, max, max)
-    search_df.sort_values(by='morton').reset_index().plot(x='x', y='y', marker="o", ax=ax, label="SearchSpace")
+    #search_df.sort_values(by='morton').reset_index().plot(x='x', y='y', marker="o", ax=ax, label="SearchSpace")
 
     geofence_area = (C[0] - A[0] + 1) * (C[1] - A[1] + 1)
     search_area = len(search_df.axes[0])
@@ -177,6 +177,8 @@ def search_Morton(geofence, df_array, curve, m, resolution):
 ################################################################
 
 def identifyNonRelvantAreas(m, geofence, search_df, min_value_x, min_value_y, max_value_x, max_value_y):
+
+    # print("identification of non relevant areas", min_value_x, min_value_y, ";", max_value_x, max_value_y, "Search_df has", len(search_df.index), "lines.")
 
     if (m.pack(max_value_x, max_value_y) - m.pack(min_value_x, min_value_y)) <=3:
         return search_df
@@ -239,26 +241,30 @@ def identifyNonRelvantAreas(m, geofence, search_df, min_value_x, min_value_y, ma
 
 
     if Q1 == False:
-        for i in range(Q1_range[0], Q1_range[1]+1):
-            search_df = search_df[search_df['morton'] != i]
+        search_df = search_df.drop(search_df[(search_df.morton < Q1_range[1]+1) & (search_df.morton > Q1_range[0])].index)
+        #for i in range(Q1_range[0], Q1_range[1]+1):
+        #    search_df = search_df[search_df['morton'] != i]
     else:
         search_df = identifyNonRelvantAreas(m, geofence, search_df, min_value_x=min_value_x, min_value_y=min_value_y,
                                             max_value_x=half_value_x-1, max_value_y=half_value_y-1)
     if Q2 == False:
-        for i in range(Q2_range[0], Q2_range[1]+1):
-            search_df = search_df[search_df['morton'] != i]
+        search_df = search_df.drop(search_df[(search_df.morton < Q2_range[1] + 1) & (search_df.morton > Q2_range[0])].index)
+        #for i in range(Q2_range[0], Q2_range[1]+1):
+        #    search_df = search_df[search_df['morton'] != i]
     else:
         search_df = identifyNonRelvantAreas(m, geofence, search_df, min_value_x=half_value_x, min_value_y=min_value_y,
                                             max_value_x=max_value_x, max_value_y=half_value_y - 1)
     if Q3 == False:
-        for i in range(Q3_range[0], Q3_range[1]+1):
-            search_df = search_df[search_df['morton'] != i]
+        search_df = search_df.drop(search_df[(search_df.morton < Q3_range[1] + 1) & (search_df.morton > Q3_range[0])].index)
+        #for i in range(Q3_range[0], Q3_range[1]+1):
+        #    search_df = search_df[search_df['morton'] != i]
     else:
         search_df = identifyNonRelvantAreas(m, geofence, search_df, min_value_x=min_value_x, min_value_y=half_value_y,
                                             max_value_x=half_value_x - 1, max_value_y=max_value_y)
     if Q4 == False:
-        for i in range(Q4_range[0], Q4_range[1]+1):
-            search_df = search_df[search_df['morton'] != i]
+        search_df = search_df.drop(search_df[(search_df.morton < Q4_range[1] + 1) & (search_df.morton > Q4_range[0])].index)
+        #for i in range(Q4_range[0], Q4_range[1]+1):
+        #    search_df = search_df[search_df['morton'] != i]
     else:
         search_df = identifyNonRelvantAreas(m, geofence, search_df, min_value_x=half_value_x, min_value_y=half_value_y,
                                             max_value_x=max_value_x, max_value_y=max_value_y)
@@ -296,7 +302,8 @@ if __name__ == '__main__':
 
     time_filter_start = time.time()
 
-    geofence = [[0.5, -4], [2, -1]]
+    #geofence = [[0.5, -4], [2, -1]]
+    geofence = [[0.1, -1], [0.2, 0.1]]
     fence_x = 'accel_lon'
     fence_y = 'accel_trans'
 
@@ -309,10 +316,16 @@ if __name__ == '__main__':
     print("Time to set geofence and filter with threshold value", len(df.index), "rows:", round(time_filter_end-time_filter_start, 5), "s")
     ################################################################
 
-    search_Morton(geofence, df, 'morton', m, bits)
+    time_filter_start = time.time()
+    search_df = search_Morton(geofence, df, 'morton', m, bits)
+    time_filter_end = time.time()
+
+    print("Time to calculate search_df from geofence", round(time_filter_end-time_filter_start, 5), "s; containing", len(search_df.index), "values.")
+
+    # df_relevant_values = df.drop(df[(df.morton < Q1_range[1]+1) & (search_df.morton > Q1_range[0])].index)
 
     ################################################################
-    plot_Values(df, dff, geofence)
+    plot_Values(df, search_df, geofence)
 
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
