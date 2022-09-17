@@ -271,7 +271,7 @@ def identifyNonRelvantAreas(m, geofence, search_df, min_value_x, min_value_y, ma
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
 
-#    df = pd.read_csv('../Data/Ausschnitte/opendlv.device.gps.pos.Grp1Data-0.csv', sep=';',
+#    df = pd.read_csv('C:/Users/LukasB/Documents/Chalmers/Data/Ausschnitte/Hard_Braking/braking_cut_8_brakes.csv', sep=';',
 #                     usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed',
 #                              'accel_lon', 'accel_trans', 'accel_down'])
     df = pd.read_csv('../Data/Ausschnitte/Hard_Braking/braking_cut_8_brakes.csv', sep=';',
