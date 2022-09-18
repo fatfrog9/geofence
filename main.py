@@ -277,6 +277,7 @@ def identifyNonRelvantAreas(m, geofence, search_mask, min_value_x, min_value_y, 
 ################################################################
 
 def define_geofences(geofence_resolution):
+
     # geofence_list = [[[stark_beschl_min, links_min], [stark_beschl_max, links_max]], # 1, stark beschleunigen links
     #                  [[stark_beschl_min, gerade_min], [stark_beschl_max, gerade_max]], # 2, stark beschleunigen gerade
     #                  [[stark_beschl_min, rechts_min], [stark_beschl_max, rechts_max]],  # 3, stark beschleunigen rechts
@@ -295,11 +296,12 @@ def define_geofences(geofence_resolution):
     #                  ]
 
     geofence_list = []
-    for i in np.arange(-9,9,geofence_resolution):
-        for j in np.arange(-5,5,geofence_resolution):
+    for i in np.arange(-4,4,geofence_resolution):
+        for j in np.arange(-2,2,geofence_resolution):
             geofence_list.append([[i, j], [(i+geofence_resolution), (j+geofence_resolution)]])
 
     # print(geofence_list)
+    print(len(geofence_list))
 
     return geofence_list
 
@@ -308,12 +310,14 @@ def define_geofences(geofence_resolution):
 
 def mp_worker(m, bits, geofence_temp):
     print("Work on ", geofence_temp)
+    time_filter_start = time.time()
     search_mask = transfer_Geofence_to_Morton(geofence=geofence_temp, m=m, resolution=bits, resolution_search_space=1)
-    print("Done: ",geofence_temp)
+    time_filter_end = time.time()
+    print("Done: ",geofence_temp, "Duration:", str(datetime.timedelta(seconds=round(time_filter_end - time_filter_start, 5))))
     return search_mask, geofence_temp
 
 def mp_handler(geofence_list, dim, bits, res_searchmask, m):
-    p = multiprocessing.Pool(int(multiprocessing.cpu_count()/4))
+    p = multiprocessing.Pool(3) #int(multiprocessing.cpu_count()/8)
     partial_call = functools.partial(mp_worker, m, bits)
 
     for search_mask, geofence_temp in p.map(partial_call, geofence_list):
