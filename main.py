@@ -172,7 +172,7 @@ def transfer_Geofence_to_Morton(geofence, m, resolution, resolution_search_space
 
     console = Console()
     with console.status("[bold green] Transform Geofence...") as status:
-        search_mask = identifyNonRelvantAreas(m, geofence, search_mask, min, min, max, max)
+        search_mask = identifyNonRelvantAreas(m, geofence, search_mask, min, min, max, max, offset, faktor_multiply)
 
     #search_mask.sort_values(by='morton').reset_index().plot(x='x', y='y', marker="o", ax=ax, label="SearchSpace")
 
@@ -180,15 +180,22 @@ def transfer_Geofence_to_Morton(geofence, m, resolution, resolution_search_space
 
 ################################################################
 
-def identifyNonRelvantAreas(m, geofence, search_mask, min_value_x, min_value_y, max_value_x, max_value_y):
+def identifyNonRelvantAreas(m, geofence, search_mask, min_value_x, min_value_y, max_value_x, max_value_y, offset, faktor_multiply):
 
     # print("identification of non relevant areas", min_value_x, min_value_y, ";", max_value_x, max_value_y, "search_mask has", len(search_mask.index), "lines.")
 
     if (m.pack(max_value_x, max_value_y) - m.pack(min_value_x, min_value_y)) <=3:
         return search_mask
 
-    A = geofence[0]
-    C = geofence[1]
+    A = [0, 0]  # geofence[0]
+    A[0] = int((geofence[0][0] + offset) * faktor_multiply)
+    A[1] = int((geofence[0][1] + offset) * faktor_multiply)
+    C = [0, 0]  # geofence[1]
+    C[0] = int((geofence[1][0] + offset) * faktor_multiply)
+    C[1] = int((geofence[1][1] + offset) * faktor_multiply)
+
+    #A = geofence[0]
+    #C = geofence[1]
 
     half_value_x = int(((max_value_x - min_value_x) / 2) + 0.5 + min_value_x)
     half_value_y = int(((max_value_y - min_value_y) / 2) + 0.5 + min_value_y)
@@ -247,24 +254,54 @@ def identifyNonRelvantAreas(m, geofence, search_mask, min_value_x, min_value_y, 
     if Q1 == False:
         search_mask = search_mask.drop(search_mask[(search_mask.morton < Q1_range[1]+1) & (search_mask.morton > Q1_range[0])].index)
     else:
-        search_mask = identifyNonRelvantAreas(m, geofence, search_mask, min_value_x=min_value_x, min_value_y=min_value_y, max_value_x=half_value_x-1, max_value_y=half_value_y-1)
+        search_mask = identifyNonRelvantAreas(m, geofence, search_mask, min_value_x=min_value_x, min_value_y=min_value_y, max_value_x=half_value_x-1, max_value_y=half_value_y-1, offset=offset, faktor_multiply=faktor_multiply)
     if Q2 == False:
         search_mask = search_mask.drop(search_mask[(search_mask.morton < Q2_range[1] + 1) & (search_mask.morton > Q2_range[0])].index)
     else:
         search_mask = identifyNonRelvantAreas(m, geofence, search_mask, min_value_x=half_value_x, min_value_y=min_value_y,
-                                            max_value_x=max_value_x, max_value_y=half_value_y - 1)
+                                            max_value_x=max_value_x, max_value_y=half_value_y - 1, offset=offset, faktor_multiply=faktor_multiply)
     if Q3 == False:
         search_mask = search_mask.drop(search_mask[(search_mask.morton < Q3_range[1] + 1) & (search_mask.morton > Q3_range[0])].index)
     else:
         search_mask = identifyNonRelvantAreas(m, geofence, search_mask, min_value_x=min_value_x, min_value_y=half_value_y,
-                                            max_value_x=half_value_x - 1, max_value_y=max_value_y)
+                                            max_value_x=half_value_x - 1, max_value_y=max_value_y, offset=offset, faktor_multiply=faktor_multiply)
     if Q4 == False:
         search_mask = search_mask.drop(search_mask[(search_mask.morton < Q4_range[1] + 1) & (search_mask.morton > Q4_range[0])].index)
     else:
         search_mask = identifyNonRelvantAreas(m, geofence, search_mask, min_value_x=half_value_x, min_value_y=half_value_y,
-                                            max_value_x=max_value_x, max_value_y=max_value_y)
+                                            max_value_x=max_value_x, max_value_y=max_value_y, offset=offset, faktor_multiply=faktor_multiply)
 
     return search_mask
+
+
+################################################################
+
+def define_geofences():
+    # geofence_list = [[[stark_beschl_min, links_min], [stark_beschl_max, links_max]], # 1, stark beschleunigen links
+    #                  [[stark_beschl_min, gerade_min], [stark_beschl_max, gerade_max]], # 2, stark beschleunigen gerade
+    #                  [[stark_beschl_min, rechts_min], [stark_beschl_max, rechts_max]],  # 3, stark beschleunigen rechts
+    #                  [[leicht_beschl_min, links_min], [leicht_beschl_max, links_max]],  # 4, leicht beschleunigen links
+    #                  [[leicht_beschl_min, gerade_min], [leicht_beschl_max, gerade_max]],  # 5, leicht beschleunigen gerade
+    #                  [[leicht_beschl_min, rechts_min], [leicht_beschl_max, rechts_max]],  # 6, leicht beschleunigen rechts
+    #                  [[no_beschl_min, links_min], [no_beschl_max, links_max]],  # 7, nicht beschleunigen links
+    #                  [[no_beschl_min, gerade_min], [no_beschl_max, gerade_max]], # 8, nicht beschleunigen gerade
+    #                  [[no_beschl_min, rechts_min], [no_beschl_max, rechts_max]], # 9, nicht beschleunigen rechts
+    #                  [[leicht_brems_min, links_min], [leicht_brems_max, links_max]],  # 10, leicht bremsen links
+    #                  [[leicht_brems_min, gerade_min], [leicht_brems_max, gerade_max]],  # 11, leicht bremsen gerade
+    #                  [[leicht_brems_min, rechts_min], [leicht_brems_max, rechts_max]],  # 12, leicht bremsen rechts
+    #                  [[stark_brems_min, links_min], [stark_brems_max, links_max]],  # 13, stark bremsen links
+    #                  [[stark_brems_min, gerade_min], [stark_brems_max, gerade_max]],  # 14, stark bremsen gerade
+    #                  [[stark_brems_min, rechts_min], [stark_brems_max, rechts_max]],  # 15, stark bremsen rechts
+    #                  ]
+
+    geofence_list = []
+    for i in np.arange(-9,9,0.5):
+        for j in np.arange(-5,5,0.5):
+            geofence_list.append([[i, j], [(i+0.5), (j+0.5)]])
+
+    # print(geofence_list)
+
+    return geofence_list
 
 
 ################################################################
@@ -276,7 +313,7 @@ def mp_worker(m, bits, geofence_temp):
     return search_mask, geofence_temp
 
 def mp_handler(geofence_list, dim, bits, res_searchmask, m):
-    p = multiprocessing.Pool(multiprocessing.cpu_count())
+    p = multiprocessing.Pool(int(multiprocessing.cpu_count()/4))
     partial_call = functools.partial(mp_worker, m, bits)
 
     for search_mask, geofence_temp in p.map(partial_call, geofence_list):
@@ -295,7 +332,7 @@ if __name__ == '__main__':
     print("Välkommen!")
     print("Load_Database...")
 
-    generate_masks = False
+    generate_masks = True
 
 #    df = pd.read_csv('C:/Users/LukasB/Documents/Chalmers/Data/Ausschnitte/Hard_Braking/braking_cut_8_brakes.csv', sep=';',
 #                     usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed',
@@ -328,11 +365,11 @@ if __name__ == '__main__':
 
     #geofence = [[0.5, -4], [2, -1]]
     #geofence = [[0.0, 0.0], [1, 1]]
-    geofence = [[0.1, 0.1], [0.5, 0.5]]
+    #geofence = [[0.1, 0.1], [0.5, 0.5]]
 
-    searchmask_name = str(dim) + '/' + str(bits) + '/' + str(res_searchmask) + '/SearchMask_' + str(
-        geofence[0][0]) + '_' + str(geofence[0][1]) + '_' + str(geofence[1][0]) + '_' + str(
-        geofence[1][1])
+    #searchmask_name = str(dim) + '/' + str(bits) + '/' + str(res_searchmask) + '/SearchMask_' + str(
+    #    geofence[0][0]) + '_' + str(geofence[0][1]) + '_' + str(geofence[1][0]) + '_' + str(
+    #    geofence[1][1])
 
     #threshold, longitudinal
     stark_beschl_min = -8
@@ -354,27 +391,8 @@ if __name__ == '__main__':
     rechts_max = -0.5
     rechts_min = -4
 
-    geofence_list = [geofence]
-    geofence_list = [[[stark_beschl_min, links_min], [stark_beschl_max, links_max]], # 1, stark beschleunigen links
-                     [[stark_beschl_min, gerade_min], [stark_beschl_max, gerade_max]], # 2, stark beschleunigen gerade
-                     [[stark_beschl_min, rechts_min], [stark_beschl_max, rechts_max]],  # 3, stark beschleunigen rechts
-                     [[leicht_beschl_min, links_min], [leicht_beschl_max, links_max]],  # 4, leicht beschleunigen links
-                     [[leicht_beschl_min, gerade_min], [leicht_beschl_max, gerade_max]],  # 5, leicht beschleunigen gerade
-                     [[leicht_beschl_min, rechts_min], [leicht_beschl_max, rechts_max]],  # 6, leicht beschleunigen rechts
-                     [[no_beschl_min, links_min], [no_beschl_max, links_max]],  # 7, nicht beschleunigen links
-                     [[no_beschl_min, gerade_min], [no_beschl_max, gerade_max]], # 8, nicht beschleunigen gerade
-                     [[no_beschl_min, rechts_min], [no_beschl_max, rechts_max]], # 9, nicht beschleunigen rechts
-                     [[leicht_brems_min, links_min], [leicht_brems_max, links_max]],  # 10, leicht bremsen links
-                     [[leicht_brems_min, gerade_min], [leicht_brems_max, gerade_max]],  # 11, leicht bremsen gerade
-                     [[leicht_brems_min, rechts_min], [leicht_brems_max, rechts_max]],  # 12, leicht bremsen rechts
-                     [[stark_brems_min, links_min], [stark_brems_max, links_max]],  # 13, stark bremsen links
-                     [[stark_brems_min, gerade_min], [stark_brems_max, gerade_max]],  # 14, stark bremsen gerade
-                     [[stark_brems_min, rechts_min], [stark_brems_max, rechts_max]],  # 15, stark bremsen rechts
-                     ]
-
-    # geofence_list = [[[0.0, 0.0], [0.1, 0.1]],
-    #                  [[0.1, 0.1], [0.2, 0.2]],
-    #                  [[0.2, 0.2], [0.3, 0.3]]]
+    # geofence_list = [geofence]
+    geofence_list = define_geofences()
 
     fence_x = 'accel_lon'
     fence_y = 'accel_trans'
