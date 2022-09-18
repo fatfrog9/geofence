@@ -276,7 +276,7 @@ def identifyNonRelvantAreas(m, geofence, search_mask, min_value_x, min_value_y, 
 
 ################################################################
 
-def define_geofences():
+def define_geofences(geofence_resolution):
     # geofence_list = [[[stark_beschl_min, links_min], [stark_beschl_max, links_max]], # 1, stark beschleunigen links
     #                  [[stark_beschl_min, gerade_min], [stark_beschl_max, gerade_max]], # 2, stark beschleunigen gerade
     #                  [[stark_beschl_min, rechts_min], [stark_beschl_max, rechts_max]],  # 3, stark beschleunigen rechts
@@ -295,9 +295,9 @@ def define_geofences():
     #                  ]
 
     geofence_list = []
-    for i in np.arange(-9,9,0.5):
-        for j in np.arange(-5,5,0.5):
-            geofence_list.append([[i, j], [(i+0.5), (j+0.5)]])
+    for i in np.arange(-9,9,geofence_resolution):
+        for j in np.arange(-5,5,geofence_resolution):
+            geofence_list.append([[i, j], [(i+geofence_resolution), (j+geofence_resolution)]])
 
     # print(geofence_list)
 
@@ -392,7 +392,7 @@ if __name__ == '__main__':
     rechts_min = -4
 
     # geofence_list = [geofence]
-    geofence_list = define_geofences()
+    geofence_list = define_geofences(geofence_resolution=1)
 
     fence_x = 'accel_lon'
     fence_y = 'accel_trans'
