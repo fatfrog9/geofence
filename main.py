@@ -146,12 +146,12 @@ def transfer_Geofence_to_Morton(geofence, m, resolution, resolution_search_space
     offset = 10
     faktor_multiply = 10000
 
-    A = geofence[0]
-    A[0] = int((A[0] + offset) * faktor_multiply)
-    A[1] = int((A[1] + offset) * faktor_multiply)
-    C = geofence[1]
-    C[0] = int((C[0] + offset) * faktor_multiply)
-    C[1] = int((C[1] + offset) * faktor_multiply)
+    A = [0,0] #geofence[0]
+    A[0] = int((geofence[0][0] + offset) * faktor_multiply)
+    A[1] = int((geofence[0][1] + offset) * faktor_multiply)
+    C = [0,0] #geofence[1]
+    C[0] = int((geofence[1][0] + offset) * faktor_multiply)
+    C[1] = int((geofence[1][1] + offset) * faktor_multiply)
     B = [A[0], C[1]]
     D = [A[1], C[0]]
 
@@ -271,7 +271,7 @@ def identifyNonRelvantAreas(m, geofence, search_mask, min_value_x, min_value_y, 
 
 def mp_worker(m, bits, geofence_temp):
     print("Work on ", geofence_temp)
-    search_mask = transfer_Geofence_to_Morton(geofence_temp, m, bits, 1)
+    search_mask = transfer_Geofence_to_Morton(geofence=geofence_temp, m=m, resolution=bits, resolution_search_space=1)
     print("Done: ",geofence_temp)
     return search_mask, geofence_temp
 
@@ -332,7 +332,7 @@ if __name__ == '__main__':
 
     searchmask_name = str(dim) + '/' + str(bits) + '/' + str(res_searchmask) + '/SearchMask_' + str(
         geofence[0][0]) + '_' + str(geofence[0][1]) + '_' + str(geofence[1][0]) + '_' + str(
-        geofence[1][0])
+        geofence[1][1])
 
     #threshold, longitudinal
     stark_beschl_min = -8
