@@ -139,7 +139,7 @@ def generate_ts(df):
 
 ################################################################
 
-def search_Morton(geofence, df_array, curve, m, resolution):
+def transfer_Geofence_to_Morton(geofence, df_array, curve, m, resolution):
     offset = 10
     faktor_multiply = 10000
 
@@ -271,6 +271,9 @@ def identifyNonRelvantAreas(m, geofence, search_df, min_value_x, min_value_y, ma
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
 
+    print("Välkommen!")
+    print("Load_Database...")
+
 #    df = pd.read_csv('C:/Users/LukasB/Documents/Chalmers/Data/Ausschnitte/Hard_Braking/braking_cut_8_brakes.csv', sep=';',
 #                     usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed',
 #                              'accel_lon', 'accel_trans', 'accel_down'])
@@ -295,33 +298,45 @@ if __name__ == '__main__':
 
     ################################################################
 
-    time_filter_start = time.time()
+    #time_filter_start = time.time()
 
     #geofence = [[0.5, -4], [2, -1]]
-    geofence = [[0.0, 0.0], [0.1, 0.1]]
+    geofence = [[0.0, 0.0], [1, 1]]
     #geofence = [[0.1, -1], [0.2, 0.1]]
     fence_x = 'accel_lon'
     fence_y = 'accel_trans'
 
+    print("Transfer fence in Morton-Space.")
+
     # dff = filter_Values(df, geofence, fence_x=fence_x, fence_y=fence_y)
-    dff = filter_Morton(df, 25000000000, 30000000000) # stark Bremsen
+    # dff = filter_Morton(df, 25000000000, 30000000000) # stark Bremsen
     # dff = filter_Morton(df, 10000000000, 13000000000) # starke Beschleunigung
     # dff = filter_Morton(df, 14000000000, 14800000000) # linkskurve Bremsen
 
-    time_filter_end = time.time()
-    print("Time to set geofence and filter with threshold value", len(df.index), "rows:", round(time_filter_end-time_filter_start, 5), "s")
+    #time_filter_end = time.time()
+    #print("Time to set geofence and filter with threshold value", len(df.index), "rows:", round(time_filter_end-time_filter_start, 5), "s")
     ################################################################
 
     time_filter_start = time.time()
-    search_df = search_Morton(geofence, df, 'morton', m, bits)
+    search_df = transfer_Geofence_to_Morton(geofence, df, 'morton', m, bits)
     time_filter_end = time.time()
 
-    print("Time to calculate search_df from geofence", round(time_filter_end-time_filter_start, 5), "s; containing", len(search_df.index), "values.")
+    print("Time to transfer geofence in morton", round(time_filter_end-time_filter_start, 5), "s; containing", len(search_df.index), "values.")
 
     # df_relevant_values = df.drop(df[(df.morton < Q1_range[1]+1) & (search_df.morton > Q1_range[0])].index)
+    #df_relevant_values = df
+
+    time_filter_start = time.time()
+
+    filter = df["morton"].isin(search_df['morton'])
+    df_relevant_values = df[filter]
+
+    time_filter_end = time.time()
+
+    print("Time to identify relevant values in database:", round(time_filter_end-time_filter_start, 5), "s; containing", len(df_relevant_values.index), "values.")
 
     ################################################################
-    plot_Values(df, search_df, geofence)
+    plot_Values(df, df_relevant_values, geofence)
 
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
