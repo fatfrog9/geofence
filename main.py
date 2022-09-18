@@ -11,6 +11,8 @@ import datetime
 import sys
 import time
 from rich.console import Console
+import multiprocessing
+import functools
 
 
 def plot_Values(df, dff, geofence):
@@ -267,6 +269,24 @@ def identifyNonRelvantAreas(m, geofence, search_mask, min_value_x, min_value_y, 
 
 ################################################################
 
+def mp_worker(m, bits, geofence_temp):
+    print("Work on ", geofence_temp)
+    search_mask = transfer_Geofence_to_Morton(geofence_temp, m, bits, 1), geofence_temp
+    print("Done: ",geofence_temp)
+    return search_mask
+
+def mp_handler(geofence_list, dim, bits, res_searchmask, m):
+    p = multiprocessing.Pool(multiprocessing.cpu_count())
+    partial_call = functools.partial(mp_worker, m, bits)
+
+    for search_mask, geofence_temp in p.map(partial_call, geofence_list):
+        searchmask_name = str(dim) + '/' + str(bits) + '/' + str(res_searchmask) + '/SearchMask_' + str(
+            geofence_temp[0][0]) + '_' + str(geofence_temp[0][1]) + '_' + str(geofence_temp[1][0]) + '_' + str(
+            geofence_temp[1][1])
+        store[searchmask_name] = search_mask
+    return search_mask
+
+
 ################################################################
 
 # Press the green button in the gutter to run the script.
@@ -333,22 +353,26 @@ if __name__ == '__main__':
     rechts_min = -4
 
     #geofence_list = [geofence]
-    geofence_list = [[[stark_beschl_min, links_min], [stark_beschl_max, links_max]], # 1, stark beschleunigen links
-                     [[stark_beschl_min, gerade_min], [stark_beschl_max, gerade_max]], # 2, stark beschleunigen gerade
-                     [[stark_beschl_min, rechts_min], [stark_beschl_max, rechts_max]],  # 3, stark beschleunigen rechts
-                     [[leicht_beschl_min, links_min], [leicht_beschl_max, links_max]],  # 4, leicht beschleunigen links
-                     [[leicht_beschl_min, gerade_min], [leicht_beschl_max, gerade_max]],  # 5, leicht beschleunigen gerade
-                     [[leicht_beschl_min, rechts_min], [leicht_beschl_max, rechts_max]],  # 6, leicht beschleunigen rechts
-                     [[no_beschl_min, links_min], [no_beschl_max, links_max]],  # 7, nicht beschleunigen links
-                     [[no_beschl_min, gerade_min], [no_beschl_max, gerade_max]], # 8, nicht beschleunigen gerade
-                     [[no_beschl_min, rechts_min], [no_beschl_max, rechts_max]], # 9, nicht beschleunigen rechts
-                     [[leicht_brems_min, links_min], [leicht_brems_max, links_max]],  # 10, leicht bremsen links
-                     [[leicht_brems_min, gerade_min], [leicht_brems_max, gerade_max]],  # 11, leicht bremsen gerade
-                     [[leicht_brems_min, rechts_min], [leicht_brems_max, rechts_max]],  # 12, leicht bremsen rechts
-                     [[stark_brems_min, links_min], [stark_brems_max, links_max]],  # 13, stark bremsen links
-                     [[stark_brems_min, gerade_min], [stark_brems_max, gerade_max]],  # 14, stark bremsen gerade
-                     [[stark_brems_min, rechts_min], [stark_brems_max, rechts_max]],  # 15, stark bremsen rechts
-                     ]
+    # geofence_list = [[[stark_beschl_min, links_min], [stark_beschl_max, links_max]], # 1, stark beschleunigen links
+    #                  [[stark_beschl_min, gerade_min], [stark_beschl_max, gerade_max]], # 2, stark beschleunigen gerade
+    #                  [[stark_beschl_min, rechts_min], [stark_beschl_max, rechts_max]],  # 3, stark beschleunigen rechts
+    #                  [[leicht_beschl_min, links_min], [leicht_beschl_max, links_max]],  # 4, leicht beschleunigen links
+    #                  [[leicht_beschl_min, gerade_min], [leicht_beschl_max, gerade_max]],  # 5, leicht beschleunigen gerade
+    #                  [[leicht_beschl_min, rechts_min], [leicht_beschl_max, rechts_max]],  # 6, leicht beschleunigen rechts
+    #                  [[no_beschl_min, links_min], [no_beschl_max, links_max]],  # 7, nicht beschleunigen links
+    #                  [[no_beschl_min, gerade_min], [no_beschl_max, gerade_max]], # 8, nicht beschleunigen gerade
+    #                  [[no_beschl_min, rechts_min], [no_beschl_max, rechts_max]], # 9, nicht beschleunigen rechts
+    #                  [[leicht_brems_min, links_min], [leicht_brems_max, links_max]],  # 10, leicht bremsen links
+    #                  [[leicht_brems_min, gerade_min], [leicht_brems_max, gerade_max]],  # 11, leicht bremsen gerade
+    #                  [[leicht_brems_min, rechts_min], [leicht_brems_max, rechts_max]],  # 12, leicht bremsen rechts
+    #                  [[stark_brems_min, links_min], [stark_brems_max, links_max]],  # 13, stark bremsen links
+    #                  [[stark_brems_min, gerade_min], [stark_brems_max, gerade_max]],  # 14, stark bremsen gerade
+    #                  [[stark_brems_min, rechts_min], [stark_brems_max, rechts_max]],  # 15, stark bremsen rechts
+    #                  ]
+
+    geofence_list = [[[0.0, 0.0], [0.1, 0.1]],
+                     [[0.1, 0.1], [0.2, 0.2]],
+                     [[0.2, 0.2], [0.3, 0.3]]]
 
     fence_x = 'accel_lon'
     fence_y = 'accel_trans'
@@ -370,27 +394,29 @@ if __name__ == '__main__':
 
     #search_mask = pd.read_pickle("/SearchMask/" + geofence[0][0] + "_" + geofence[0][1] + "_" + geofence[1][0] + "_" + geofence[1][0] + "_" + dim + "_" + bits + "_" + res_searchmask)
 
-    for geofence_temp in geofence_list:
-        searchmask_name = str(dim) + '/' + str(bits) + '/' + str(res_searchmask) + '/SearchMask_' + str(
-            geofence_temp[0][0]) + '_' + str(geofence_temp[0][1]) + '_' + str(geofence_temp[1][0]) + '_' + str(geofence_temp[1][1])
-        if searchmask_name in store:
-            print("Load SearchMask from storage.")
-            time_filter_start = time.time()
-            search_mask = store.get(searchmask_name)
-            time_filter_end = time.time()
-            print("Took", round(time_filter_end - time_filter_start, 5), "s; containing",
-                  len(search_mask.index), "values.")
-        else:
-            print(searchmask_name + ' is not in store; Lets create it. This takes some time...')
+    search_mask = mp_handler(geofence_list, dim, bits, res_searchmask, m)
 
-            time_filter_start = time.time()
-            search_mask = transfer_Geofence_to_Morton(geofence, m, bits, 1)
-            time_filter_end = time.time()
-
-            print("Time to transfer geofence in morton", round(time_filter_end - time_filter_start, 5), "s; containing",
-                  len(search_mask.index), "values.")
-
-            store[searchmask_name] = search_mask
+    # for geofence_temp in geofence_list:
+    #     searchmask_name = str(dim) + '/' + str(bits) + '/' + str(res_searchmask) + '/SearchMask_' + str(
+    #         geofence_temp[0][0]) + '_' + str(geofence_temp[0][1]) + '_' + str(geofence_temp[1][0]) + '_' + str(geofence_temp[1][1])
+    #     if searchmask_name in store:
+    #         print("Load SearchMask from storage.")
+    #         time_filter_start = time.time()
+    #         search_mask = store.get(searchmask_name)
+    #         time_filter_end = time.time()
+    #         print("Took", round(time_filter_end - time_filter_start, 5), "s; containing",
+    #               len(search_mask.index), "values.")
+    #     else:
+    #         print(searchmask_name + ' is not in store; Lets create it. This takes some time...')
+    #
+    #         time_filter_start = time.time()
+    #         search_mask = transfer_Geofence_to_Morton(geofence_temp, m, bits, 1)
+    #         time_filter_end = time.time()
+    #
+    #         print("Time to transfer geofence in morton", round(time_filter_end - time_filter_start, 5), "s; containing",
+    #               len(search_mask.index), "values.")
+    #
+    #         store[searchmask_name] = search_mask
     store.close()
 
 
