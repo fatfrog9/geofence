@@ -333,7 +333,7 @@ if __name__ == '__main__':
 
     time_filter_end = time.time()
 
-    print("Time to identify relevant values in database:", round(time_filter_end-time_filter_start, 5), "s; containing", len(df_relevant_values.index), "values.")
+    print("Time to identify relevant values in database:", round(time_filter_end-time_filter_start, 10), "s; containing", len(df_relevant_values.index), "values.")
 
     ################################################################
     plot_Values(df, df_relevant_values, geofence)
