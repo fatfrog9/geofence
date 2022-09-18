@@ -372,7 +372,7 @@ if __name__ == '__main__':
 
     for geofence_temp in geofence_list:
         searchmask_name = str(dim) + '/' + str(bits) + '/' + str(res_searchmask) + '/SearchMask_' + str(
-            geofence_temp[0][0]) + '_' + str(geofence_temp[0][1]) + '_' + str(geofence_temp[1][0]) + '_' + str(geofence_temp[1][0])
+            geofence_temp[0][0]) + '_' + str(geofence_temp[0][1]) + '_' + str(geofence_temp[1][0]) + '_' + str(geofence_temp[1][1])
         if searchmask_name in store:
             print("Load SearchMask from storage.")
             time_filter_start = time.time()
