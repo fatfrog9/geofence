@@ -11,7 +11,6 @@ import datetime
 import sys
 import time
 from rich.console import Console
-import tqdm
 
 
 def plot_Values(df, dff, geofence):
