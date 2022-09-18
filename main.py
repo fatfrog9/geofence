@@ -2,7 +2,7 @@
 
 # Press Umschalt+F10 to execute it or replace it with your code.
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
-
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
@@ -139,7 +139,7 @@ def generate_ts(df):
 
 ################################################################
 
-def transfer_Geofence_to_Morton(geofence, df_array, curve, m, resolution):
+def transfer_Geofence_to_Morton(geofence, df_array, curve, m, resolution, resolution_search_space):
     offset = 10
     faktor_multiply = 10000
 
@@ -152,40 +152,37 @@ def transfer_Geofence_to_Morton(geofence, df_array, curve, m, resolution):
     B = [A[0], C[1]]
     D = [A[1], C[0]]
 
-    search_space = [m.pack(A[0], A[1]), m.pack(C[0], C[1])]
+    search_space = [m.pack(A[0], A[1]), m.pack(C[0], C[1])] # geofence in morton bereich; erste Wertebereich ermittlung
 
     #ax.add_patch(Rectangle((A[0]-0.25, A[1]-0.25), C[0]-A[0]+0.5, C[1]-A[1]+0.5, fill=False, color='red', lw = 2))
 
     #df_array[(df_array.morton >= search_space[0]) & (df_array.morton <= search_space[1])].sort_values(by='morton').reset_index().plot(x='x', y='y', marker="o", ax=ax, label="SearchSpace")
 
-    search_df = df_array[(df_array.morton >= search_space[0]) & (df_array.morton <= search_space[1])]
+    np_ar = np.arange(search_space[0], search_space[1], resolution_search_space)
+    search_mask = pd.DataFrame(np_ar, columns = ['morton'])
+    #print(len(search_mask))
+
+    # search_mask = df_array[(df_array.morton >= search_space[0]) & (df_array.morton <= search_space[1])]
 
     min = 0
     max = (2**resolution)-1
 
     console = Console()
     with console.status("[bold green] Transform Geofence...") as status:
-        search_df = identifyNonRelvantAreas(m, geofence, search_df, min, min, max, max)
+        search_mask = identifyNonRelvantAreas(m, geofence, search_mask, min, min, max, max)
 
-    #search_df.sort_values(by='morton').reset_index().plot(x='x', y='y', marker="o", ax=ax, label="SearchSpace")
+    #search_mask.sort_values(by='morton').reset_index().plot(x='x', y='y', marker="o", ax=ax, label="SearchSpace")
 
-    geofence_area = (C[0] - A[0] + 1) * (C[1] - A[1] + 1)
-    search_area = len(search_df.axes[0])
-    precision = geofence_area / (geofence_area + (search_area - geofence_area))
-
-    print("Search space for geofence:", geofence, "requires search between", search_space[0], "and", search_space[1], "requires", search_area, "queries to search ", geofence_area, "entries." )
-    #print("Precision of", round(precision, 3))
-
-    return search_df
+    return search_mask
 
 ################################################################
 
-def identifyNonRelvantAreas(m, geofence, search_df, min_value_x, min_value_y, max_value_x, max_value_y):
+def identifyNonRelvantAreas(m, geofence, search_mask, min_value_x, min_value_y, max_value_x, max_value_y):
 
-    # print("identification of non relevant areas", min_value_x, min_value_y, ";", max_value_x, max_value_y, "Search_df has", len(search_df.index), "lines.")
+    # print("identification of non relevant areas", min_value_x, min_value_y, ";", max_value_x, max_value_y, "search_mask has", len(search_mask.index), "lines.")
 
     if (m.pack(max_value_x, max_value_y) - m.pack(min_value_x, min_value_y)) <=3:
-        return search_df
+        return search_mask
 
     A = geofence[0]
     C = geofence[1]
@@ -193,7 +190,7 @@ def identifyNonRelvantAreas(m, geofence, search_df, min_value_x, min_value_y, ma
     half_value_x = int(((max_value_x - min_value_x) / 2) + 0.5 + min_value_x)
     half_value_y = int(((max_value_y - min_value_y) / 2) + 0.5 + min_value_y)
 
-    # search_df = df_array[['x', 'y', 'morton']]
+    # search_mask = df_array[['x', 'y', 'morton']]
 
     Q1 = False
     Q2 = False
@@ -245,26 +242,26 @@ def identifyNonRelvantAreas(m, geofence, search_df, min_value_x, min_value_y, ma
 
 
     if Q1 == False:
-        search_df = search_df.drop(search_df[(search_df.morton < Q1_range[1]+1) & (search_df.morton > Q1_range[0])].index)
+        search_mask = search_mask.drop(search_mask[(search_mask.morton < Q1_range[1]+1) & (search_mask.morton > Q1_range[0])].index)
     else:
-        search_df = identifyNonRelvantAreas(m, geofence, search_df, min_value_x=min_value_x, min_value_y=min_value_y, max_value_x=half_value_x-1, max_value_y=half_value_y-1)
+        search_mask = identifyNonRelvantAreas(m, geofence, search_mask, min_value_x=min_value_x, min_value_y=min_value_y, max_value_x=half_value_x-1, max_value_y=half_value_y-1)
     if Q2 == False:
-        search_df = search_df.drop(search_df[(search_df.morton < Q2_range[1] + 1) & (search_df.morton > Q2_range[0])].index)
+        search_mask = search_mask.drop(search_mask[(search_mask.morton < Q2_range[1] + 1) & (search_mask.morton > Q2_range[0])].index)
     else:
-        search_df = identifyNonRelvantAreas(m, geofence, search_df, min_value_x=half_value_x, min_value_y=min_value_y,
+        search_mask = identifyNonRelvantAreas(m, geofence, search_mask, min_value_x=half_value_x, min_value_y=min_value_y,
                                             max_value_x=max_value_x, max_value_y=half_value_y - 1)
     if Q3 == False:
-        search_df = search_df.drop(search_df[(search_df.morton < Q3_range[1] + 1) & (search_df.morton > Q3_range[0])].index)
+        search_mask = search_mask.drop(search_mask[(search_mask.morton < Q3_range[1] + 1) & (search_mask.morton > Q3_range[0])].index)
     else:
-        search_df = identifyNonRelvantAreas(m, geofence, search_df, min_value_x=min_value_x, min_value_y=half_value_y,
+        search_mask = identifyNonRelvantAreas(m, geofence, search_mask, min_value_x=min_value_x, min_value_y=half_value_y,
                                             max_value_x=half_value_x - 1, max_value_y=max_value_y)
     if Q4 == False:
-        search_df = search_df.drop(search_df[(search_df.morton < Q4_range[1] + 1) & (search_df.morton > Q4_range[0])].index)
+        search_mask = search_mask.drop(search_mask[(search_mask.morton < Q4_range[1] + 1) & (search_mask.morton > Q4_range[0])].index)
     else:
-        search_df = identifyNonRelvantAreas(m, geofence, search_df, min_value_x=half_value_x, min_value_y=half_value_y,
+        search_mask = identifyNonRelvantAreas(m, geofence, search_mask, min_value_x=half_value_x, min_value_y=half_value_y,
                                             max_value_x=max_value_x, max_value_y=max_value_y)
 
-    return search_df
+    return search_mask
 
 ################################################################
 
@@ -294,6 +291,9 @@ if __name__ == '__main__':
 
     ################################################################
     bits = 18
+    dim = 2
+    res_searchmask = 1
+
     df, m = calc_Morton(df=df, dimension=2, bits=bits)
 
     ################################################################
@@ -301,10 +301,18 @@ if __name__ == '__main__':
     #time_filter_start = time.time()
 
     #geofence = [[0.5, -4], [2, -1]]
-    geofence = [[0.0, 0.0], [1, 1]]
-    #geofence = [[0.1, -1], [0.2, 0.1]]
+    #geofence = [[0.0, 0.0], [1, 1]]
+    geofence = [[0.1, 0.1], [0.2, 0.2]]
+
     fence_x = 'accel_lon'
     fence_y = 'accel_trans'
+
+    #store = pd.HDFStore("/SearchMask/" + geofence[0][0] + "_" + geofence[0][1] + "_" + geofence[1][0] + "_" + geofence[1][0] + "_" + dim + "_" + bits + "_" + res_searchmask)
+    store = pd.HDFStore("searchMaskStorage.h5")
+    searchmask_name = str(dim) + '/' + str(bits) + '/' + str(res_searchmask) + '/SearchMask_' + str(
+        geofence[0][0]) + '_' + str(geofence[0][1]) + '_' + str(geofence[1][0]) + '_' + str(geofence[1][0])
+
+    ################################################################
 
     print("Transfer fence in Morton-Space.")
 
@@ -317,18 +325,28 @@ if __name__ == '__main__':
     #print("Time to set geofence and filter with threshold value", len(df.index), "rows:", round(time_filter_end-time_filter_start, 5), "s")
     ################################################################
 
-    time_filter_start = time.time()
-    search_df = transfer_Geofence_to_Morton(geofence, df, 'morton', m, bits)
-    time_filter_end = time.time()
+    #search_mask = pd.read_pickle("/SearchMask/" + geofence[0][0] + "_" + geofence[0][1] + "_" + geofence[1][0] + "_" + geofence[1][0] + "_" + dim + "_" + bits + "_" + res_searchmask)
 
-    print("Time to transfer geofence in morton", round(time_filter_end-time_filter_start, 5), "s; containing", len(search_df.index), "values.")
+    if searchmask_name in store:
+        search_mask = store.get('searchmask_name')
+    else:
+        print(searchmask_name + 'is not in store; Lets create it. This takes some time...')
 
-    # df_relevant_values = df.drop(df[(df.morton < Q1_range[1]+1) & (search_df.morton > Q1_range[0])].index)
+        time_filter_start = time.time()
+        search_mask = transfer_Geofence_to_Morton(geofence, df, 'morton', m, bits, 1)
+        time_filter_end = time.time()
+
+        store[searchmask_name] = search_mask
+    store.close()
+
+    print("Time to transfer geofence in morton", round(time_filter_end-time_filter_start, 5), "s; containing", len(search_mask.index), "values.")
+
+    # df_relevant_values = df.drop(df[(df.morton < Q1_range[1]+1) & (search_mask.morton > Q1_range[0])].index)
     #df_relevant_values = df
 
     time_filter_start = time.time()
 
-    filter = df["morton"].isin(search_df['morton'])
+    filter = df["morton"].isin(search_mask['morton'])
     df_relevant_values = df[filter]
 
     time_filter_end = time.time()
