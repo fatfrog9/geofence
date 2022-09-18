@@ -306,7 +306,7 @@ if __name__ == '__main__':
 
     #geofence = [[0.5, -4], [2, -1]]
     #geofence = [[0.0, 0.0], [1, 1]]
-    geofence = [[0.1, 0.1], [0.2, 0.2]]
+    geofence = [[0.1, 0.1], [0.5, 0.5]]
 
     searchmask_name = str(dim) + '/' + str(bits) + '/' + str(res_searchmask) + '/SearchMask_' + str(
         geofence[0][0]) + '_' + str(geofence[0][1]) + '_' + str(geofence[1][0]) + '_' + str(
@@ -332,7 +332,7 @@ if __name__ == '__main__':
     rechts_max = -0.5
     rechts_min = -4
 
-
+    #geofence_list = [geofence]
     geofence_list = [[[stark_beschl_min, links_min], [stark_beschl_max, links_max]], # 1, stark beschleunigen links
                      [[stark_beschl_min, gerade_min], [stark_beschl_max, gerade_max]], # 2, stark beschleunigen gerade
                      [[stark_beschl_min, rechts_min], [stark_beschl_max, rechts_max]],  # 3, stark beschleunigen rechts
@@ -391,7 +391,7 @@ if __name__ == '__main__':
                   len(search_mask.index), "values.")
 
             store[searchmask_name] = search_mask
-        store.close()
+    store.close()
 
 
     # df_relevant_values = df.drop(df[(df.morton < Q1_range[1]+1) & (search_mask.morton > Q1_range[0])].index)
