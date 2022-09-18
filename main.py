@@ -396,37 +396,37 @@ if __name__ == '__main__':
 
     #search_mask = pd.read_pickle("/SearchMask/" + geofence[0][0] + "_" + geofence[0][1] + "_" + geofence[1][0] + "_" + geofence[1][0] + "_" + dim + "_" + bits + "_" + res_searchmask)
 
-    #if generate_masks == True:
-    time_filter_start = time.time()
-    search_mask = mp_handler(geofence_list, dim, bits, res_searchmask, m)
-    time_filter_end = time.time()
+    if generate_masks == True:
+        time_filter_start = time.time()
+        search_mask = mp_handler(geofence_list, dim, bits, res_searchmask, m)
+        time_filter_end = time.time()
 
-    print("Time parallel generation:", round(time_filter_end - time_filter_start, 5), "s")
-    #else:
-    time_filter_start = time.time()
-    for geofence_temp in geofence_list:
-        searchmask_name = str(dim) + '/' + str(bits) + '/' + str(res_searchmask) + '/SearchMask_' + str(
-            geofence_temp[0][0]) + '_' + str(geofence_temp[0][1]) + '_' + str(geofence_temp[1][0]) + '_' + str(geofence_temp[1][1])
-        if searchmask_name in store:
-            print("Load SearchMask from storage.")
-            time_filter_start = time.time()
-            search_mask = store.get(searchmask_name)
-            time_filter_end = time.time()
-            print("Took", round(time_filter_end - time_filter_start, 5), "s; containing",
-                  len(search_mask.index), "values.")
-        else:
-            print(searchmask_name + ' is not in store; Lets create it. This takes some time...')
+        print("Time parallel generation:", round(time_filter_end - time_filter_start, 5), "s")
+    else:
+        time_filter_start = time.time()
+        for geofence_temp in geofence_list:
+            searchmask_name = str(dim) + '/' + str(bits) + '/' + str(res_searchmask) + '/SearchMask_' + str(
+                geofence_temp[0][0]) + '_' + str(geofence_temp[0][1]) + '_' + str(geofence_temp[1][0]) + '_' + str(geofence_temp[1][1])
+            if searchmask_name in store:
+                print("Load SearchMask from storage.")
+                time_filter_start = time.time()
+                search_mask = store.get(searchmask_name)
+                time_filter_end = time.time()
+                print("Took", round(time_filter_end - time_filter_start, 5), "s; containing",
+                      len(search_mask.index), "values.")
+            else:
+                print(searchmask_name + ' is not in store; Lets create it. This takes some time...')
 
-            time_filter_start = time.time()
-            search_mask = transfer_Geofence_to_Morton(geofence_temp, m, bits, 1)
-            time_filter_end = time.time()
+                time_filter_start = time.time()
+                search_mask = transfer_Geofence_to_Morton(geofence_temp, m, bits, 1)
+                time_filter_end = time.time()
 
-            print("Time to transfer geofence in morton", round(time_filter_end - time_filter_start, 5), "s; containing",
-                  len(search_mask.index), "values.")
+                print("Time to transfer geofence in morton", round(time_filter_end - time_filter_start, 5), "s; containing",
+                      len(search_mask.index), "values.")
 
-            store[searchmask_name] = search_mask
-    time_filter_end = time.time()
-    print("Time sequentiell generation:", round(time_filter_end - time_filter_start, 5), "s")
+                store[searchmask_name] = search_mask
+        time_filter_end = time.time()
+        print("Time sequentiell generation:", round(time_filter_end - time_filter_start, 5), "s")
 
     store.close()
 
