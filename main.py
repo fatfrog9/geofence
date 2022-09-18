@@ -11,6 +11,8 @@ import datetime
 import sys
 import time
 from rich.console import Console
+import tqdm
+
 
 def plot_Values(df, dff, geofence):
     fig, ax = plt.subplots(4, gridspec_kw={'height_ratios': [3, 3, 3, 1]})
@@ -139,7 +141,7 @@ def generate_ts(df):
 
 ################################################################
 
-def transfer_Geofence_to_Morton(geofence, df_array, curve, m, resolution, resolution_search_space):
+def transfer_Geofence_to_Morton(geofence, m, resolution, resolution_search_space):
     offset = 10
     faktor_multiply = 10000
 
@@ -263,6 +265,9 @@ def identifyNonRelvantAreas(m, geofence, search_mask, min_value_x, min_value_y, 
 
     return search_mask
 
+
+################################################################
+
 ################################################################
 
 # Press the green button in the gutter to run the script.
@@ -304,13 +309,52 @@ if __name__ == '__main__':
     #geofence = [[0.0, 0.0], [1, 1]]
     geofence = [[0.1, 0.1], [0.2, 0.2]]
 
+    searchmask_name = str(dim) + '/' + str(bits) + '/' + str(res_searchmask) + '/SearchMask_' + str(
+        geofence[0][0]) + '_' + str(geofence[0][1]) + '_' + str(geofence[1][0]) + '_' + str(
+        geofence[1][0])
+
+    #threshold, longitudinal
+    stark_beschl_min = -8
+    stark_beschl_max = -3
+    leicht_beschl_min = -3
+    leicht_beschl_max = -0.5
+    no_beschl_min = -0.5
+    no_beschl_max = 0.5
+    leicht_brems_min = 0.5
+    leicht_brems_max = 4
+    stark_brems_min = 4
+    stark_brems_max = 10
+
+    # threshold, lateral
+    links_max = 4
+    links_min = 0.5
+    gerade_max = 0.5
+    gerade_min = -0.5
+    rechts_max = -0.5
+    rechts_min = -4
+
+
+    geofence_list = [[[stark_beschl_min, links_min], [stark_beschl_max, links_max]], # 1, stark beschleunigen links
+                     [[stark_beschl_min, gerade_min], [stark_beschl_max, gerade_max]], # 2, stark beschleunigen gerade
+                     [[stark_beschl_min, rechts_min], [stark_beschl_max, rechts_max]],  # 3, stark beschleunigen rechts
+                     [[leicht_beschl_min, links_min], [leicht_beschl_max, links_max]],  # 4, leicht beschleunigen links
+                     [[leicht_beschl_min, gerade_min], [leicht_beschl_max, gerade_max]],  # 5, leicht beschleunigen gerade
+                     [[leicht_beschl_min, rechts_min], [leicht_beschl_max, rechts_max]],  # 6, leicht beschleunigen rechts
+                     [[no_beschl_min, links_min], [no_beschl_max, links_max]],  # 7, nicht beschleunigen links
+                     [[no_beschl_min, gerade_min], [no_beschl_max, gerade_max]], # 8, nicht beschleunigen gerade
+                     [[no_beschl_min, rechts_min], [no_beschl_max, rechts_max]], # 9, nicht beschleunigen rechts
+                     [[leicht_brems_min, links_min], [leicht_brems_max, links_max]],  # 10, leicht bremsen links
+                     [[leicht_brems_min, gerade_min], [leicht_brems_max, gerade_max]],  # 11, leicht bremsen gerade
+                     [[leicht_brems_min, rechts_min], [leicht_brems_max, rechts_max]],  # 12, leicht bremsen rechts
+                     [[stark_brems_min, links_min], [stark_brems_max, links_max]],  # 13, stark bremsen links
+                     [[stark_brems_min, gerade_min], [stark_brems_max, gerade_max]],  # 14, stark bremsen gerade
+                     [[stark_brems_min, rechts_min], [stark_brems_max, rechts_max]],  # 15, stark bremsen rechts
+                     ]
+
     fence_x = 'accel_lon'
     fence_y = 'accel_trans'
 
-    #store = pd.HDFStore("/SearchMask/" + geofence[0][0] + "_" + geofence[0][1] + "_" + geofence[1][0] + "_" + geofence[1][0] + "_" + dim + "_" + bits + "_" + res_searchmask)
     store = pd.HDFStore("searchMaskStorage.h5")
-    searchmask_name = str(dim) + '/' + str(bits) + '/' + str(res_searchmask) + '/SearchMask_' + str(
-        geofence[0][0]) + '_' + str(geofence[0][1]) + '_' + str(geofence[1][0]) + '_' + str(geofence[1][0])
 
     ################################################################
 
@@ -327,19 +371,29 @@ if __name__ == '__main__':
 
     #search_mask = pd.read_pickle("/SearchMask/" + geofence[0][0] + "_" + geofence[0][1] + "_" + geofence[1][0] + "_" + geofence[1][0] + "_" + dim + "_" + bits + "_" + res_searchmask)
 
-    if searchmask_name in store:
-        search_mask = store.get('searchmask_name')
-    else:
-        print(searchmask_name + 'is not in store; Lets create it. This takes some time...')
+    for geofence_temp in geofence_list:
+        searchmask_name = str(dim) + '/' + str(bits) + '/' + str(res_searchmask) + '/SearchMask_' + str(
+            geofence_temp[0][0]) + '_' + str(geofence_temp[0][1]) + '_' + str(geofence_temp[1][0]) + '_' + str(geofence_temp[1][0])
+        if searchmask_name in store:
+            print("Load SearchMask from storage.")
+            time_filter_start = time.time()
+            search_mask = store.get(searchmask_name)
+            time_filter_end = time.time()
+            print("Took", round(time_filter_end - time_filter_start, 5), "s; containing",
+                  len(search_mask.index), "values.")
+        else:
+            print(searchmask_name + ' is not in store; Lets create it. This takes some time...')
 
-        time_filter_start = time.time()
-        search_mask = transfer_Geofence_to_Morton(geofence, df, 'morton', m, bits, 1)
-        time_filter_end = time.time()
+            time_filter_start = time.time()
+            search_mask = transfer_Geofence_to_Morton(geofence, m, bits, 1)
+            time_filter_end = time.time()
 
-        store[searchmask_name] = search_mask
-    store.close()
+            print("Time to transfer geofence in morton", round(time_filter_end - time_filter_start, 5), "s; containing",
+                  len(search_mask.index), "values.")
 
-    print("Time to transfer geofence in morton", round(time_filter_end-time_filter_start, 5), "s; containing", len(search_mask.index), "values.")
+            store[searchmask_name] = search_mask
+        store.close()
+
 
     # df_relevant_values = df.drop(df[(df.morton < Q1_range[1]+1) & (search_mask.morton > Q1_range[0])].index)
     #df_relevant_values = df
