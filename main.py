@@ -354,27 +354,27 @@ if __name__ == '__main__':
     rechts_max = -0.5
     rechts_min = -4
 
-    #geofence_list = [geofence]
-    # geofence_list = [[[stark_beschl_min, links_min], [stark_beschl_max, links_max]], # 1, stark beschleunigen links
-    #                  [[stark_beschl_min, gerade_min], [stark_beschl_max, gerade_max]], # 2, stark beschleunigen gerade
-    #                  [[stark_beschl_min, rechts_min], [stark_beschl_max, rechts_max]],  # 3, stark beschleunigen rechts
-    #                  [[leicht_beschl_min, links_min], [leicht_beschl_max, links_max]],  # 4, leicht beschleunigen links
-    #                  [[leicht_beschl_min, gerade_min], [leicht_beschl_max, gerade_max]],  # 5, leicht beschleunigen gerade
-    #                  [[leicht_beschl_min, rechts_min], [leicht_beschl_max, rechts_max]],  # 6, leicht beschleunigen rechts
-    #                  [[no_beschl_min, links_min], [no_beschl_max, links_max]],  # 7, nicht beschleunigen links
-    #                  [[no_beschl_min, gerade_min], [no_beschl_max, gerade_max]], # 8, nicht beschleunigen gerade
-    #                  [[no_beschl_min, rechts_min], [no_beschl_max, rechts_max]], # 9, nicht beschleunigen rechts
-    #                  [[leicht_brems_min, links_min], [leicht_brems_max, links_max]],  # 10, leicht bremsen links
-    #                  [[leicht_brems_min, gerade_min], [leicht_brems_max, gerade_max]],  # 11, leicht bremsen gerade
-    #                  [[leicht_brems_min, rechts_min], [leicht_brems_max, rechts_max]],  # 12, leicht bremsen rechts
-    #                  [[stark_brems_min, links_min], [stark_brems_max, links_max]],  # 13, stark bremsen links
-    #                  [[stark_brems_min, gerade_min], [stark_brems_max, gerade_max]],  # 14, stark bremsen gerade
-    #                  [[stark_brems_min, rechts_min], [stark_brems_max, rechts_max]],  # 15, stark bremsen rechts
-    #                  ]
+    geofence_list = [geofence]
+    geofence_list = [[[stark_beschl_min, links_min], [stark_beschl_max, links_max]], # 1, stark beschleunigen links
+                     [[stark_beschl_min, gerade_min], [stark_beschl_max, gerade_max]], # 2, stark beschleunigen gerade
+                     [[stark_beschl_min, rechts_min], [stark_beschl_max, rechts_max]],  # 3, stark beschleunigen rechts
+                     [[leicht_beschl_min, links_min], [leicht_beschl_max, links_max]],  # 4, leicht beschleunigen links
+                     [[leicht_beschl_min, gerade_min], [leicht_beschl_max, gerade_max]],  # 5, leicht beschleunigen gerade
+                     [[leicht_beschl_min, rechts_min], [leicht_beschl_max, rechts_max]],  # 6, leicht beschleunigen rechts
+                     [[no_beschl_min, links_min], [no_beschl_max, links_max]],  # 7, nicht beschleunigen links
+                     [[no_beschl_min, gerade_min], [no_beschl_max, gerade_max]], # 8, nicht beschleunigen gerade
+                     [[no_beschl_min, rechts_min], [no_beschl_max, rechts_max]], # 9, nicht beschleunigen rechts
+                     [[leicht_brems_min, links_min], [leicht_brems_max, links_max]],  # 10, leicht bremsen links
+                     [[leicht_brems_min, gerade_min], [leicht_brems_max, gerade_max]],  # 11, leicht bremsen gerade
+                     [[leicht_brems_min, rechts_min], [leicht_brems_max, rechts_max]],  # 12, leicht bremsen rechts
+                     [[stark_brems_min, links_min], [stark_brems_max, links_max]],  # 13, stark bremsen links
+                     [[stark_brems_min, gerade_min], [stark_brems_max, gerade_max]],  # 14, stark bremsen gerade
+                     [[stark_brems_min, rechts_min], [stark_brems_max, rechts_max]],  # 15, stark bremsen rechts
+                     ]
 
-    geofence_list = [[[0.0, 0.0], [0.1, 0.1]],
-                     [[0.1, 0.1], [0.2, 0.2]],
-                     [[0.2, 0.2], [0.3, 0.3]]]
+    # geofence_list = [[[0.0, 0.0], [0.1, 0.1]],
+    #                  [[0.1, 0.1], [0.2, 0.2]],
+    #                  [[0.2, 0.2], [0.3, 0.3]]]
 
     fence_x = 'accel_lon'
     fence_y = 'accel_trans'
