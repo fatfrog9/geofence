@@ -295,7 +295,7 @@ if __name__ == '__main__':
     print("Välkommen!")
     print("Load_Database...")
 
-    generate_masks = True
+    generate_masks = False
 
 #    df = pd.read_csv('C:/Users/LukasB/Documents/Chalmers/Data/Ausschnitte/Hard_Braking/braking_cut_8_brakes.csv', sep=';',
 #                     usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed',
@@ -396,10 +396,15 @@ if __name__ == '__main__':
 
     #search_mask = pd.read_pickle("/SearchMask/" + geofence[0][0] + "_" + geofence[0][1] + "_" + geofence[1][0] + "_" + geofence[1][0] + "_" + dim + "_" + bits + "_" + res_searchmask)
 
-    if generate_masks == True:
-        search_mask = mp_handler(geofence_list, dim, bits, res_searchmask, m)
-    else:
-        geofence_temp = geofence
+    #if generate_masks == True:
+    time_filter_start = time.time()
+    search_mask = mp_handler(geofence_list, dim, bits, res_searchmask, m)
+    time_filter_end = time.time()
+
+    print("Time parallel generation:", round(time_filter_end - time_filter_start, 5), "s")
+    #else:
+    time_filter_start = time.time()
+    for geofence_temp in geofence_list:
         searchmask_name = str(dim) + '/' + str(bits) + '/' + str(res_searchmask) + '/SearchMask_' + str(
             geofence_temp[0][0]) + '_' + str(geofence_temp[0][1]) + '_' + str(geofence_temp[1][0]) + '_' + str(geofence_temp[1][1])
         if searchmask_name in store:
@@ -420,6 +425,9 @@ if __name__ == '__main__':
                   len(search_mask.index), "values.")
 
             store[searchmask_name] = search_mask
+    time_filter_end = time.time()
+    print("Time sequentiell generation:", round(time_filter_end - time_filter_start, 5), "s")
+
     store.close()
 
     # df_relevant_values = df.drop(df[(df.morton < Q1_range[1]+1) & (search_mask.morton > Q1_range[0])].index)
