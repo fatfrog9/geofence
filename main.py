@@ -62,6 +62,7 @@ def plot_Values(df, dff):
 
     fig.tight_layout()
     plt.show()
+
 ################################################################
 
 def filter_Values(df, geofence, fence_x, fence_y):
@@ -110,7 +111,7 @@ def precondition_data(df, max_accel):
     length_prev = len(df)
     df = df.drop(df[(df.accel_lon < (max_accel * -1)) | (df.accel_lon > max_accel)].index)
     df = df.drop(df[(df.accel_trans < (max_accel * -1)) | (df.accel_trans > max_accel)].index)
-    print("Remove",length_prev - len(df), "out-of-range-values.")
+    print("Ignore",length_prev - len(df), "out-of-range-values.")
     return df
 
 ################################################################
@@ -143,6 +144,58 @@ def generate_ts(df):
     df = df.drop(columns=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds'], axis=1)
 
     return df
+
+################################################################
+
+def generate_Search_Mask(geofence_list, dim, bits, geofence_resolution, offset, faktor_multiply, store, m):
+    time_filter_start = time.time()
+    geofence_generate_parallel = []
+
+    for geofence_temp in geofence_list:
+        searchmask_name = str(dim) + '/' + str(bits) + '/' + str(geofence_resolution) + '/' + str(offset) + '/' + str(faktor_multiply) + '/SearchMask_' + str(
+            geofence_temp[0][0]) + '_' + str(geofence_temp[0][1]) + '_' + str(geofence_temp[1][0]) + '_' + str(geofence_temp[1][1])
+
+        if not searchmask_name in store:
+            if generate_masks_multithread == True:
+                geofence_generate_parallel.append(geofence_temp)
+            else:
+                print(searchmask_name + ' is not in store; Lets create it. This takes some time...')
+                time_filter_start = time.time()
+                search_mask_temp = transfer_Geofence_to_Morton(geofence_temp, m, bits, 1, offset, faktor_multiply)
+                search_mask = pd.concat([search_mask, search_mask_temp], axis = 0)
+                time_filter_end = time.time()
+                print("Time to transfer geofence in morton", round(time_filter_end - time_filter_start, 5), "s; containing",
+                  len(search_mask.index), "values.")
+                store[searchmask_name] = search_mask
+    # generate Masks Multithread
+    if len(geofence_generate_parallel) > 0:
+        print("Generate missing Searchmasks...")
+        mp_handler(geofence_generate_parallel, dim, bits, geofence_resolution, m, offset, faktor_multiply)
+    time_filter_end = time.time()
+
+
+    search_mask = pd.DataFrame(columns=['morton'])
+    print("Load Search Masks from Storage.")
+    #load Masks
+    for geofence_temp in geofence_list:
+        searchmask_name = str(dim) + '/' + str(bits) + '/' + str(geofence_resolution) + '/' + str(offset) + '/' + str(faktor_multiply) + '/SearchMask_' + str(geofence_temp[0][0]) + '_' + str(geofence_temp[0][1]) + '_' + str(geofence_temp[1][0]) + '_' + str(geofence_temp[1][1])
+
+        if searchmask_name in store:
+            #print("Load SearchMask: ", str(searchmask_name), " from storage.")
+            #time_filter_start = time.time()
+            search_mask_temp = store.get(searchmask_name)
+            search_mask = pd.concat([search_mask, search_mask_temp], axis=0)
+            #time_filter_end = time.time()
+            #print("Took", round(time_filter_end - time_filter_start, 5), "s; containing",
+            #      len(search_mask.index), "values.")
+        else:
+            sys.exit("Error while loading SearchMask.")
+
+    print("Done: SearchMask contains", len(search_mask.index), "values.")
+
+    store.close()
+
+    return search_mask
 
 ################################################################
 
@@ -312,17 +365,28 @@ def mp_handler(geofence_list, dim, bits, res_searchmask, m, offset, faktor_multi
     partial_call = functools.partial(mp_worker, m, bits, offset, faktor_multiply)
 
     for search_mask, geofence_temp in p.map(partial_call, geofence_list):
-        searchmask_name = str(dim) + '/' + str(bits) + '/' + str(res_searchmask) + '/SearchMask_' + str(
-            geofence_temp[0][0]) + '_' + str(geofence_temp[0][1]) + '_' + str(geofence_temp[1][0]) + '_' + str(
-            geofence_temp[1][1])
+        searchmask_name = str(dim) + '/' + str(bits) + '/' + str(geofence_resolution) + '/' + str(offset) + '/' + str(faktor_multiply) + '/SearchMask_' + str(geofence_temp[0][0]) + '_' + str(geofence_temp[0][1]) + '_' + str(geofence_temp[1][0]) + '_' + str(geofence_temp[1][1])
+
         store[searchmask_name] = search_mask
+
+
+################################################################
+
+def scene_filter(search_mask):
+
+    filter = df["morton"].isin(search_mask['morton'])
+
+    return df[filter]
+
+################################################################
+
 
 
 ################################################################
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
-    warnings.filterwarnings("ignore", category=UserWarning)
+    warnings.filterwarnings("ignore")
 
     print("Välkommen!")
 
@@ -331,110 +395,41 @@ if __name__ == '__main__':
     faktor_multiply = 100
     geofence_resolution = 0.5
     max_accel = 10
+    bits = 18
+    dim = 2
+
+
+    store = pd.HDFStore("searchMaskStorage.h5")
 
     # geofence
-    geofence = [[0.5,-4],[1.5,-0.5]]
+    geofence = [[-10,-5],[10,5]]
 
     geofence_list = define_geofences(geofence_resolution=geofence_resolution, geofence=geofence)
+    ################################################################
 
     print("Load_Database...")
-#    df = pd.read_csv('C:/Users/LukasB/Documents/Chalmers/Data/Ausschnitte/Hard_Braking/braking_cut_8_brakes.csv', sep=';',
-#                     usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed',
-#                              'accel_lon', 'accel_trans', 'accel_down'])
-    df = pd.read_csv('../Data/Ausschnitte/Hard_Braking/braking_cut_8_brakes.csv', sep=';',
+    df = pd.read_csv('../Data/Ausschnitte/opendlv.device.gps.pos.Grp1Data-0.csv', sep=';',
                      usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed',
                               'accel_lon', 'accel_trans', 'accel_down'])
-
-
-    ################################################################
+#    df = pd.read_csv('../Data/Ausschnitte/Hard_Braking/braking_cut_8_brakes.csv', sep=';',
+#                     usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed',
+#                              'accel_lon', 'accel_trans', 'accel_down'])
 
     df = generate_ts(df)
     df = precondition_data(df, max_accel)
 
-    ################################################################
-    bits = 18
-    dim = 2
-    res_searchmask = 1
-
     df, m = calc_Morton(df=df, dimension=2, bits=bits, offset=offset, faktor_multiply=faktor_multiply)
-    ################################################################
-
-
-    fence_x = 'accel_lon'
-    fence_y = 'accel_trans'
-
-    store = pd.HDFStore("searchMaskStorage.h5")
 
     ################################################################
 
-    print("Transfer fence in Morton-Space.")
+    print("Define Search Mask.")
+    search_mask = generate_Search_Mask(geofence_list, dim, bits, geofence_resolution, offset, faktor_multiply, store, m)
 
     ################################################################
 
-    # if generate_masks == True:
-    #     time_filter_start = time.time()
-    #     search_mask = mp_handler(geofence_list, dim, bits, res_searchmask, m, offset, faktor_multiply)
-    #     time_filter_end = time.time()
-    #
-    #     print("Time parallel generation:", round(time_filter_end - time_filter_start, 5), "s")
-    # else:
-    time_filter_start = time.time()
-    geofence_generate_parallel = []
-
-    for geofence_temp in geofence_list:
-        searchmask_name = str(dim) + '/' + str(bits) + '/' + str(res_searchmask) + '/SearchMask_' + str(
-            geofence_temp[0][0]) + '_' + str(geofence_temp[0][1]) + '_' + str(geofence_temp[1][0]) + '_' + str(geofence_temp[1][1])
-
-        if not searchmask_name in store:
-            if generate_masks_multithread == True:
-                geofence_generate_parallel.append(geofence_temp)
-            else:
-                print(searchmask_name + ' is not in store; Lets create it. This takes some time...')
-                time_filter_start = time.time()
-                search_mask_temp = transfer_Geofence_to_Morton(geofence_temp, m, bits, 1, offset, faktor_multiply)
-                search_mask = pd.concat([search_mask, search_mask_temp], axis = 0)
-                time_filter_end = time.time()
-                print("Time to transfer geofence in morton", round(time_filter_end - time_filter_start, 5), "s; containing",
-                  len(search_mask.index), "values.")
-                store[searchmask_name] = search_mask
-    # generate Masks Multithread
-    if len(geofence_generate_parallel) > 0:
-        print("Generate missing Searchmasks...")
-        mp_handler(geofence_generate_parallel, dim, bits, res_searchmask, m, offset, faktor_multiply)
-    time_filter_end = time.time()
-
-
-    search_mask = pd.DataFrame(columns=['morton'])
-    print("Load Search Masks from Storage.")
-    #load Masks
-    for geofence_temp in geofence_list:
-        searchmask_name = str(dim) + '/' + str(bits) + '/' + str(res_searchmask) + '/SearchMask_' + str(
-            geofence_temp[0][0]) + '_' + str(geofence_temp[0][1]) + '_' + str(geofence_temp[1][0]) + '_' + str(
-            geofence_temp[1][1])
-
-        if searchmask_name in store:
-            #print("Load SearchMask: ", str(searchmask_name), " from storage.")
-            #time_filter_start = time.time()
-            search_mask_temp = store.get(searchmask_name)
-            search_mask = pd.concat([search_mask, search_mask_temp], axis=0)
-            #time_filter_end = time.time()
-            #print("Took", round(time_filter_end - time_filter_start, 5), "s; containing",
-            #      len(search_mask.index), "values.")
-        else:
-            sys.exit("Error while loading", searchmask_name, ".")
-
-    print("Done: SearchMask contains", len(search_mask.index), "values.")
     print("Filter Data.")
-    store.close()
-
-    #print(search_mask['morton'].min(), "; ", search_mask['morton'].max())
-    #print(df)
-
     time_filter_start = time.time()
-
-    filter = df["morton"].isin(search_mask['morton'])
-    df_relevant_values = df[filter]
-
+    df_relevant_values = scene_filter(search_mask)
     time_filter_end = time.time()
 
     print("Done: Time to identify relevant values in database:", round(time_filter_end-time_filter_start, 10), "s; containing", len(df_relevant_values.index), "relevant values.")
