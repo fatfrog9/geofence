@@ -13,9 +13,10 @@ import time
 from rich.console import Console
 import multiprocessing
 import functools
+import warnings
 
 
-def plot_Values(df, dff, geofence):
+def plot_Values(df, dff):
     fig, ax = plt.subplots(4, gridspec_kw={'height_ratios': [3, 3, 3, 1]})
 
     df.plot(x='lon', y='lat', ax=ax[0], color = 'blue')
@@ -50,8 +51,8 @@ def plot_Values(df, dff, geofence):
     max = df['morton'].max()
     # min = 12000000000
     # max = 18000000000
-    min = 0
-    max = 30000000000
+    #min = 0
+    #max = 30000000000
     bins = 400
 
     ax[3].hist(df['morton'], bins=bins, range=(min, max), color='blue')
@@ -105,18 +106,21 @@ def filter_Morton(df, range_min, range_max):
 
 ################################################################
 
+def precondition_data(df, max_accel):
+    length_prev = len(df)
+    df = df.drop(df[(df.accel_lon < (max_accel * -1)) | (df.accel_lon > max_accel)].index)
+    df = df.drop(df[(df.accel_trans < (max_accel * -1)) | (df.accel_trans > max_accel)].index)
+    print("Remove",length_prev - len(df), "out-of-range-values.")
+    return df
 
 ################################################################
 
-def calc_Morton(df, dimension, bits):
-
-    offset = 10
+def calc_Morton(df, dimension, bits, offset, faktor_multiply):
 
     df['accel_lon_mult'] = df['accel_lon'].add(offset)
     df['accel_trans_mult'] = df['accel_trans'].add(offset)
     df['accel_down_mult'] = df['accel_down'].add(offset)
 
-    faktor_multiply = 10000
 
     df['accel_lon_mult'] = df.apply(lambda x: int(x['accel_lon_mult'] * faktor_multiply), axis=1)
     df['accel_trans_mult'] = df.apply(lambda x: int(x['accel_trans_mult'] * faktor_multiply), axis=1)
@@ -142,9 +146,7 @@ def generate_ts(df):
 
 ################################################################
 
-def transfer_Geofence_to_Morton(geofence, m, resolution, resolution_search_space):
-    offset = 10
-    faktor_multiply = 10000
+def transfer_Geofence_to_Morton(geofence, m, resolution, resolution_search_space, offset, faktor_multiply):
 
     A = [0,0] #geofence[0]
     A[0] = int((geofence[0][0] + offset) * faktor_multiply)
@@ -276,68 +278,66 @@ def identifyNonRelvantAreas(m, geofence, search_mask, min_value_x, min_value_y, 
 
 ################################################################
 
-def define_geofences(geofence_resolution):
+def define_geofences(geofence_resolution, geofence):
 
-    # geofence_list = [[[stark_beschl_min, links_min], [stark_beschl_max, links_max]], # 1, stark beschleunigen links
-    #                  [[stark_beschl_min, gerade_min], [stark_beschl_max, gerade_max]], # 2, stark beschleunigen gerade
-    #                  [[stark_beschl_min, rechts_min], [stark_beschl_max, rechts_max]],  # 3, stark beschleunigen rechts
-    #                  [[leicht_beschl_min, links_min], [leicht_beschl_max, links_max]],  # 4, leicht beschleunigen links
-    #                  [[leicht_beschl_min, gerade_min], [leicht_beschl_max, gerade_max]],  # 5, leicht beschleunigen gerade
-    #                  [[leicht_beschl_min, rechts_min], [leicht_beschl_max, rechts_max]],  # 6, leicht beschleunigen rechts
-    #                  [[no_beschl_min, links_min], [no_beschl_max, links_max]],  # 7, nicht beschleunigen links
-    #                  [[no_beschl_min, gerade_min], [no_beschl_max, gerade_max]], # 8, nicht beschleunigen gerade
-    #                  [[no_beschl_min, rechts_min], [no_beschl_max, rechts_max]], # 9, nicht beschleunigen rechts
-    #                  [[leicht_brems_min, links_min], [leicht_brems_max, links_max]],  # 10, leicht bremsen links
-    #                  [[leicht_brems_min, gerade_min], [leicht_brems_max, gerade_max]],  # 11, leicht bremsen gerade
-    #                  [[leicht_brems_min, rechts_min], [leicht_brems_max, rechts_max]],  # 12, leicht bremsen rechts
-    #                  [[stark_brems_min, links_min], [stark_brems_max, links_max]],  # 13, stark bremsen links
-    #                  [[stark_brems_min, gerade_min], [stark_brems_max, gerade_max]],  # 14, stark bremsen gerade
-    #                  [[stark_brems_min, rechts_min], [stark_brems_max, rechts_max]],  # 15, stark bremsen rechts
-    #                  ]
+    if not (geofence[0][0] < geofence[1][0]) & (geofence[0][1] < geofence[1][1]):
+        sys.exit("Geofence is not correct, expect: A[0][0] < B[1][0] & A[0][1] < B[1][1]")
+
+    if not ((geofence[0][0] % geofence_resolution) == 0) & ((geofence[0][1] % geofence_resolution) == 0) & ((geofence[1][0] % geofence_resolution) == 0) & ((geofence[1][1] % geofence_resolution) == 0):
+        sys.exit("GeofenceResolution is not common multiple of geofence values.")
 
     geofence_list = []
-    for i in np.arange(-4,4,geofence_resolution):
-        for j in np.arange(-2,2,geofence_resolution):
+    for i in np.arange(geofence[0][0],geofence[1][0],geofence_resolution): # accel_long
+        for j in np.arange(geofence[0][1],geofence[1][1],geofence_resolution): # accel_trans
             geofence_list.append([[i, j], [(i+geofence_resolution), (j+geofence_resolution)]])
 
     # print(geofence_list)
-    print(len(geofence_list))
+    # print(len(geofence_list))
 
     return geofence_list
 
 
 ################################################################
 
-def mp_worker(m, bits, geofence_temp):
-    print("Work on ", geofence_temp)
+def mp_worker(m, bits, offset, faktor_multiply, geofence_temp):
+    print("Generate Searchmask ", geofence_temp)
     time_filter_start = time.time()
-    search_mask = transfer_Geofence_to_Morton(geofence=geofence_temp, m=m, resolution=bits, resolution_search_space=1)
+    search_mask = transfer_Geofence_to_Morton(geofence=geofence_temp, m=m, resolution=bits, resolution_search_space=1, offset=offset, faktor_multiply=faktor_multiply)
     time_filter_end = time.time()
-    print("Done: ",geofence_temp, "Duration:", str(datetime.timedelta(seconds=round(time_filter_end - time_filter_start, 5))))
+    #print("Done: ",geofence_temp, "Duration:", str(datetime.timedelta(seconds=round(time_filter_end - time_filter_start, 5))))
     return search_mask, geofence_temp
 
-def mp_handler(geofence_list, dim, bits, res_searchmask, m):
-    p = multiprocessing.Pool(3) #int(multiprocessing.cpu_count()/8)
-    partial_call = functools.partial(mp_worker, m, bits)
+def mp_handler(geofence_list, dim, bits, res_searchmask, m, offset, faktor_multiply):
+    p = multiprocessing.Pool(int(multiprocessing.cpu_count()))
+    partial_call = functools.partial(mp_worker, m, bits, offset, faktor_multiply)
 
     for search_mask, geofence_temp in p.map(partial_call, geofence_list):
         searchmask_name = str(dim) + '/' + str(bits) + '/' + str(res_searchmask) + '/SearchMask_' + str(
             geofence_temp[0][0]) + '_' + str(geofence_temp[0][1]) + '_' + str(geofence_temp[1][0]) + '_' + str(
             geofence_temp[1][1])
         store[searchmask_name] = search_mask
-    return search_mask
 
 
 ################################################################
 
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
+    warnings.filterwarnings("ignore", category=UserWarning)
 
     print("Välkommen!")
+
+    generate_masks_multithread = True
+    offset = 10
+    faktor_multiply = 100
+    geofence_resolution = 0.5
+    max_accel = 10
+
+    # geofence
+    geofence = [[0.5,-4],[1.5,-0.5]]
+
+    geofence_list = define_geofences(geofence_resolution=geofence_resolution, geofence=geofence)
+
     print("Load_Database...")
-
-    generate_masks = False
-
 #    df = pd.read_csv('C:/Users/LukasB/Documents/Chalmers/Data/Ausschnitte/Hard_Braking/braking_cut_8_brakes.csv', sep=';',
 #                     usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed',
 #                              'accel_lon', 'accel_trans', 'accel_down'])
@@ -349,18 +349,16 @@ if __name__ == '__main__':
     ################################################################
 
     df = generate_ts(df)
+    df = precondition_data(df, max_accel)
 
     ################################################################
     bits = 18
     dim = 2
     res_searchmask = 1
 
-    df, m = calc_Morton(df=df, dimension=2, bits=bits)
-
+    df, m = calc_Morton(df=df, dimension=2, bits=bits, offset=offset, faktor_multiply=faktor_multiply)
     ################################################################
 
-    geofence_list = define_geofences(geofence_resolution=0.1)
-    geofence = [[0,0],[1,1]]
 
     fence_x = 'accel_lon'
     fence_y = 'accel_trans'
@@ -373,40 +371,64 @@ if __name__ == '__main__':
 
     ################################################################
 
-    if generate_masks == True:
-        time_filter_start = time.time()
-        search_mask = mp_handler(geofence_list, dim, bits, res_searchmask, m)
-        time_filter_end = time.time()
+    # if generate_masks == True:
+    #     time_filter_start = time.time()
+    #     search_mask = mp_handler(geofence_list, dim, bits, res_searchmask, m, offset, faktor_multiply)
+    #     time_filter_end = time.time()
+    #
+    #     print("Time parallel generation:", round(time_filter_end - time_filter_start, 5), "s")
+    # else:
+    time_filter_start = time.time()
+    geofence_generate_parallel = []
 
-        print("Time parallel generation:", round(time_filter_end - time_filter_start, 5), "s")
-    else:
-        time_filter_start = time.time()
-        for geofence_temp in geofence_list:
-            searchmask_name = str(dim) + '/' + str(bits) + '/' + str(res_searchmask) + '/SearchMask_' + str(
-                geofence_temp[0][0]) + '_' + str(geofence_temp[0][1]) + '_' + str(geofence_temp[1][0]) + '_' + str(geofence_temp[1][1])
-            if searchmask_name in store:
-                print("Load SearchMask from storage.")
-                time_filter_start = time.time()
-                search_mask = store.get(searchmask_name)
-                time_filter_end = time.time()
-                print("Took", round(time_filter_end - time_filter_start, 5), "s; containing",
-                      len(search_mask.index), "values.")
+    for geofence_temp in geofence_list:
+        searchmask_name = str(dim) + '/' + str(bits) + '/' + str(res_searchmask) + '/SearchMask_' + str(
+            geofence_temp[0][0]) + '_' + str(geofence_temp[0][1]) + '_' + str(geofence_temp[1][0]) + '_' + str(geofence_temp[1][1])
+
+        if not searchmask_name in store:
+            if generate_masks_multithread == True:
+                geofence_generate_parallel.append(geofence_temp)
             else:
                 print(searchmask_name + ' is not in store; Lets create it. This takes some time...')
-
                 time_filter_start = time.time()
-                search_mask = transfer_Geofence_to_Morton(geofence_temp, m, bits, 1)
+                search_mask_temp = transfer_Geofence_to_Morton(geofence_temp, m, bits, 1, offset, faktor_multiply)
+                search_mask = pd.concat([search_mask, search_mask_temp], axis = 0)
                 time_filter_end = time.time()
-
                 print("Time to transfer geofence in morton", round(time_filter_end - time_filter_start, 5), "s; containing",
-                      len(search_mask.index), "values.")
-
+                  len(search_mask.index), "values.")
                 store[searchmask_name] = search_mask
-        time_filter_end = time.time()
-        print("Time sequentiell generation:", round(time_filter_end - time_filter_start, 5), "s")
+    # generate Masks Multithread
+    if len(geofence_generate_parallel) > 0:
+        print("Generate missing Searchmasks...")
+        mp_handler(geofence_generate_parallel, dim, bits, res_searchmask, m, offset, faktor_multiply)
+    time_filter_end = time.time()
 
+
+    search_mask = pd.DataFrame(columns=['morton'])
+    print("Load Search Masks from Storage.")
+    #load Masks
+    for geofence_temp in geofence_list:
+        searchmask_name = str(dim) + '/' + str(bits) + '/' + str(res_searchmask) + '/SearchMask_' + str(
+            geofence_temp[0][0]) + '_' + str(geofence_temp[0][1]) + '_' + str(geofence_temp[1][0]) + '_' + str(
+            geofence_temp[1][1])
+
+        if searchmask_name in store:
+            #print("Load SearchMask: ", str(searchmask_name), " from storage.")
+            #time_filter_start = time.time()
+            search_mask_temp = store.get(searchmask_name)
+            search_mask = pd.concat([search_mask, search_mask_temp], axis=0)
+            #time_filter_end = time.time()
+            #print("Took", round(time_filter_end - time_filter_start, 5), "s; containing",
+            #      len(search_mask.index), "values.")
+        else:
+            sys.exit("Error while loading", searchmask_name, ".")
+
+    print("Done: SearchMask contains", len(search_mask.index), "values.")
+    print("Filter Data.")
     store.close()
 
+    #print(search_mask['morton'].min(), "; ", search_mask['morton'].max())
+    #print(df)
 
     time_filter_start = time.time()
 
@@ -415,10 +437,10 @@ if __name__ == '__main__':
 
     time_filter_end = time.time()
 
-    print("Time to identify relevant values in database:", round(time_filter_end-time_filter_start, 10), "s; containing", len(df_relevant_values.index), "values.")
+    print("Done: Time to identify relevant values in database:", round(time_filter_end-time_filter_start, 10), "s; containing", len(df_relevant_values.index), "relevant values.")
 
     ################################################################
-    plot_Values(df, df_relevant_values, geofence)
+    plot_Values(df, df_relevant_values)
 
 
 
