@@ -372,7 +372,7 @@ def mp_handler(geofence_list, dim, bits, res_searchmask, m, offset, faktor_multi
 
 ################################################################
 
-def scene_filter(search_mask):
+def scene_filter(df, search_mask):
 
     filter = df["morton"].isin(search_mask['morton'])
 
@@ -380,7 +380,33 @@ def scene_filter(search_mask):
 
 ################################################################
 
+def detect_single_maneuver(df, search_mask):
 
+    df_relevant_values = scene_filter(df, search_mask)
+
+    df_relevant_values = df_relevant_values.sort_values(by='ts').reset_index()
+    df_relevant_values['diff_to_prev'] = df_relevant_values['ts'].diff()
+
+
+    maneuver_start = df_relevant_values[df_relevant_values['diff_to_prev'] > 500000].index
+
+
+    maneuver_start_idx = 0
+    maneuver_start_ts = df_relevant_values.loc[maneuver_start_idx, 'ts']
+
+    for maneuver_idx in maneuver_start:
+
+        maneuver_end_ts = df_relevant_values.loc[maneuver_idx-1, 'ts']
+
+        if (maneuver_end_ts - maneuver_start_ts) > 800000:
+            start_date = datetime.datetime.fromtimestamp(maneuver_start_ts/1000000, datetime.timezone(datetime.timedelta(hours=1)))
+            end_date = datetime.datetime.fromtimestamp(maneuver_end_ts / 1000000,datetime.timezone(datetime.timedelta(hours=1)))
+
+            print("Maneuver detected! Start:",start_date , " End:", end_date)
+            maneuver_start_idx = maneuver_idx
+            maneuver_start_ts = df_relevant_values.loc[maneuver_start_idx, 'ts']
+
+    print("All Maneuvers detected")
 
 ################################################################
 
@@ -402,18 +428,24 @@ if __name__ == '__main__':
     store = pd.HDFStore("searchMaskStorage.h5")
 
     # geofence
-    geofence = [[-10,-5],[10,5]]
+    # geofence = [[-1.5,-4],[0,-0.5]] # rechtskurve, beschleunigung
+    geofence = [[-1.5, 0.5], [0, 4]]  # linksskurve, beschleunigung
 
     geofence_list = define_geofences(geofence_resolution=geofence_resolution, geofence=geofence)
     ################################################################
 
     print("Load_Database...")
-    df = pd.read_csv('../Data/Ausschnitte/opendlv.device.gps.pos.Grp1Data-0.csv', sep=';',
+    # df = pd.read_csv('../Data/Ausschnitte/opendlv.device.gps.pos.Grp1Data-0.csv', sep=';',
+    #                  usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed',
+    #                           'accel_lon', 'accel_trans', 'accel_down'])
+    # df = pd.read_csv('../Data/Ausschnitte/Hard_Braking/braking_cut_8_brakes.csv', sep=';',
+    #                  usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed',
+    #                           'accel_lon', 'accel_trans', 'accel_down'])
+    df = pd.read_csv('../Data/Ausschnitte/LaneChange/lanechange_single.csv', sep=';',
                      usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed',
                               'accel_lon', 'accel_trans', 'accel_down'])
-#    df = pd.read_csv('../Data/Ausschnitte/Hard_Braking/braking_cut_8_brakes.csv', sep=';',
-#                     usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed',
-#                              'accel_lon', 'accel_trans', 'accel_down'])
+
+    ################################################################
 
     df = generate_ts(df)
     df = precondition_data(df, max_accel)
@@ -429,10 +461,12 @@ if __name__ == '__main__':
 
     print("Filter Data.")
     time_filter_start = time.time()
-    df_relevant_values = scene_filter(search_mask)
+    df_relevant_values = scene_filter(df, search_mask)
     time_filter_end = time.time()
 
     print("Done: Time to identify relevant values in database:", round(time_filter_end-time_filter_start, 10), "s; containing", len(df_relevant_values.index), "relevant values.")
+
+    detect_single_maneuver(df, search_mask)
 
     ################################################################
     plot_Values(df, df_relevant_values)
