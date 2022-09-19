@@ -344,12 +344,6 @@ if __name__ == '__main__':
     df = pd.read_csv('../Data/Ausschnitte/Hard_Braking/braking_cut_8_brakes.csv', sep=';',
                      usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed',
                               'accel_lon', 'accel_trans', 'accel_down'])
-    # df.rename(columns = {'timestamp:10881:<lon>':'ts', 'accel_lon:10881:<double>':'accel_lon', 'accel_trans:10881:<double>':'accel_trans', 'accel_down:10881:<double>':'accel_down'}, inplace = True)
-
-    pd.set_option('display.max_columns', None)
-    pd.set_option('display.max_rows', None)
-
-    ################################################################
 
 
     ################################################################
@@ -365,38 +359,8 @@ if __name__ == '__main__':
 
     ################################################################
 
-    #time_filter_start = time.time()
-
-    #geofence = [[0.5, -4], [2, -1]]
-    #geofence = [[0.0, 0.0], [1, 1]]
-    #geofence = [[0.1, 0.1], [0.5, 0.5]]
-
-    #searchmask_name = str(dim) + '/' + str(bits) + '/' + str(res_searchmask) + '/SearchMask_' + str(
-    #    geofence[0][0]) + '_' + str(geofence[0][1]) + '_' + str(geofence[1][0]) + '_' + str(
-    #    geofence[1][1])
-
-    #threshold, longitudinal
-    stark_beschl_min = -8
-    stark_beschl_max = -3
-    leicht_beschl_min = -3
-    leicht_beschl_max = -0.5
-    no_beschl_min = -0.5
-    no_beschl_max = 0.5
-    leicht_brems_min = 0.5
-    leicht_brems_max = 4
-    stark_brems_min = 4
-    stark_brems_max = 10
-
-    # threshold, lateral
-    links_max = 4
-    links_min = 0.5
-    gerade_max = 0.5
-    gerade_min = -0.5
-    rechts_max = -0.5
-    rechts_min = -4
-
-    # geofence_list = [geofence]
     geofence_list = define_geofences(geofence_resolution=0.1)
+    geofence = [[0,0],[1,1]]
 
     fence_x = 'accel_lon'
     fence_y = 'accel_trans'
@@ -407,16 +371,7 @@ if __name__ == '__main__':
 
     print("Transfer fence in Morton-Space.")
 
-    # dff = filter_Values(df, geofence, fence_x=fence_x, fence_y=fence_y)
-    # dff = filter_Morton(df, 25000000000, 30000000000) # stark Bremsen
-    # dff = filter_Morton(df, 10000000000, 13000000000) # starke Beschleunigung
-    # dff = filter_Morton(df, 14000000000, 14800000000) # linkskurve Bremsen
-
-    #time_filter_end = time.time()
-    #print("Time to set geofence and filter with threshold value", len(df.index), "rows:", round(time_filter_end-time_filter_start, 5), "s")
     ################################################################
-
-    #search_mask = pd.read_pickle("/SearchMask/" + geofence[0][0] + "_" + geofence[0][1] + "_" + geofence[1][0] + "_" + geofence[1][0] + "_" + dim + "_" + bits + "_" + res_searchmask)
 
     if generate_masks == True:
         time_filter_start = time.time()
@@ -452,8 +407,6 @@ if __name__ == '__main__':
 
     store.close()
 
-    # df_relevant_values = df.drop(df[(df.morton < Q1_range[1]+1) & (search_mask.morton > Q1_range[0])].index)
-    #df_relevant_values = df
 
     time_filter_start = time.time()
 
@@ -466,6 +419,7 @@ if __name__ == '__main__':
 
     ################################################################
     plot_Values(df, df_relevant_values, geofence)
+
 
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
