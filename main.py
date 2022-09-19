@@ -16,32 +16,21 @@ import functools
 import warnings
 
 
-def plot_Values(df, dff):
+def plot_Values(df, dff, maneuver_list):
     fig, ax = plt.subplots(4, gridspec_kw={'height_ratios': [3, 3, 3, 1]})
 
     df.plot(x='lon', y='lat', ax=ax[0], color = 'blue')
     dff.plot.scatter(x='lon', y='lat', ax=ax[0], color = 'red')
 
     df.plot(x='ts', y=['accel_lon', 'accel_trans', 'accel_down'], ax=ax[1])
-    accelBoxes = False
-    if accelBoxes == True:
-        maneuver_start = dff['ts'][0]
-        maneuver_end = 0
-        maneuver_cnt = dff[((dff['diff_to_prev'] > 5000000) | (dff['diff_to_prev'].isna() == True))].index
 
-        for i in maneuver_cnt:
-            if i > 0:
-                maneuver_end = int(dff["ts"][i - 1])
-                ax[1].add_patch(Rectangle((maneuver_start, -4), maneuver_end - maneuver_start, 12, fill=False, color='red', lw=2))
-                maneuver_start = dff['ts'][i]
-
-            if i == maneuver_cnt[-1]:
-                maneuver_end = int(dff["ts"][dff.index[-1]])
-                ax[1].add_patch(Rectangle((maneuver_start, -4), maneuver_end - maneuver_start, 12, fill=False, color='red', lw=2))
-
-    else:
-        dff.plot.scatter(x='ts', y='accel_lon', color='red', ax=ax[1])
-        dff.plot.scatter(x='ts', y='accel_trans', color='red', ax=ax[1])
+    # Kästen mit Maneuvern plotten
+    for maneuver in maneuver_list:
+        ax[1].add_patch(
+            Rectangle((maneuver[0], -4), maneuver[1] - maneuver[0], 8, fill=False, color='red', lw=1.5))
+    # rote Punkte in 2. Graph
+    dff.plot.scatter(x='ts', y='accel_lon', color='red', ax=ax[1])
+    dff.plot.scatter(x='ts', y='accel_trans', color='red', ax=ax[1])
 
     df.plot(kind='scatter', x='accel_lon', y='accel_trans', color=df['ts'], ax=ax[2])
     # ax[2].add_patch(Rectangle((geofence[0][0], geofence[0][1]), geofence[1][0] - geofence[0][0],geofence[1][1] - geofence[0][1], fill=False, color='red', lw=2))
@@ -380,33 +369,41 @@ def scene_filter(df, search_mask):
 
 ################################################################
 
-def detect_single_maneuver(df, search_mask):
+def detect_single_maneuver(df, search_mask, min_duration_maneuver):
 
     df_relevant_values = scene_filter(df, search_mask)
 
     df_relevant_values = df_relevant_values.sort_values(by='ts').reset_index()
     df_relevant_values['diff_to_prev'] = df_relevant_values['ts'].diff()
 
+    pd.set_option('display.max_columns', None)  # or 1000
+    pd.set_option('display.max_rows', None)  # or 1000
 
-    maneuver_start = df_relevant_values[df_relevant_values['diff_to_prev'] > 500000].index
+
+    maneuver_start_list = list(df_relevant_values[df_relevant_values['diff_to_prev'] > min_time_between_two_independent_maneuvers].index)
+    maneuver_start_list.append(df_relevant_values.index[-1])
 
 
     maneuver_start_idx = 0
     maneuver_start_ts = df_relevant_values.loc[maneuver_start_idx, 'ts']
 
-    for maneuver_idx in maneuver_start:
+    maneuver_list = []
+    for maneuver_idx in maneuver_start_list:
 
         maneuver_end_ts = df_relevant_values.loc[maneuver_idx-1, 'ts']
 
-        if (maneuver_end_ts - maneuver_start_ts) > 800000:
-            start_date = datetime.datetime.fromtimestamp(maneuver_start_ts/1000000, datetime.timezone(datetime.timedelta(hours=1)))
-            end_date = datetime.datetime.fromtimestamp(maneuver_end_ts / 1000000,datetime.timezone(datetime.timedelta(hours=1)))
+        if (maneuver_end_ts - maneuver_start_ts) > min_duration_maneuver:
 
-            print("Maneuver detected! Start:",start_date , " End:", end_date)
-            maneuver_start_idx = maneuver_idx
-            maneuver_start_ts = df_relevant_values.loc[maneuver_start_idx, 'ts']
+            maneuver_list.append([maneuver_start_ts, maneuver_end_ts])
 
-    print("All Maneuvers detected")
+            # start_date = datetime.datetime.fromtimestamp(maneuver_start_ts/1000000, datetime.timezone(datetime.timedelta(hours=1)))
+            # end_date = datetime.datetime.fromtimestamp(maneuver_end_ts / 1000000,datetime.timezone(datetime.timedelta(hours=1)))
+            # print("Maneuver detected! Start:",start_date , " End:", end_date)
+
+        maneuver_start_idx = maneuver_idx
+        maneuver_start_ts = df_relevant_values.loc[maneuver_start_idx, 'ts']
+
+    return maneuver_list
 
 ################################################################
 
@@ -419,7 +416,7 @@ if __name__ == '__main__':
     generate_masks_multithread = True
     offset = 10
     faktor_multiply = 100
-    geofence_resolution = 0.5
+    geofence_resolution = 0.25
     max_accel = 10
     bits = 18
     dim = 2
@@ -428,8 +425,11 @@ if __name__ == '__main__':
     store = pd.HDFStore("searchMaskStorage.h5")
 
     # geofence
-    # geofence = [[-1.5,-4],[0,-0.5]] # rechtskurve, beschleunigung
-    geofence = [[-1.5, 0.5], [0, 4]]  # linksskurve, beschleunigung
+    geofence = [[-1.5,-4],[0.5,-0.75]] # rechtskurve, beschleunigung
+    #geofence = [[-1.5, 0.75], [1, 4]]  # linksskurve
+
+    min_duration_maneuver = 500000 # roughly 10 datapoints
+    min_time_between_two_independent_maneuvers = 500000
 
     geofence_list = define_geofences(geofence_resolution=geofence_resolution, geofence=geofence)
     ################################################################
@@ -441,7 +441,7 @@ if __name__ == '__main__':
     # df = pd.read_csv('../Data/Ausschnitte/Hard_Braking/braking_cut_8_brakes.csv', sep=';',
     #                  usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed',
     #                           'accel_lon', 'accel_trans', 'accel_down'])
-    df = pd.read_csv('../Data/Ausschnitte/LaneChange/lanechange_single.csv', sep=';',
+    df = pd.read_csv('../Data/Ausschnitte/LaneChange/lanechange_mult.csv', sep=';',
                      usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed',
                               'accel_lon', 'accel_trans', 'accel_down'])
 
@@ -466,10 +466,10 @@ if __name__ == '__main__':
 
     print("Done: Time to identify relevant values in database:", round(time_filter_end-time_filter_start, 10), "s; containing", len(df_relevant_values.index), "relevant values.")
 
-    detect_single_maneuver(df, search_mask)
+    maneuver_list = detect_single_maneuver(df, search_mask, min_duration_maneuver)
 
     ################################################################
-    plot_Values(df, df_relevant_values)
+    plot_Values(df, df_relevant_values, maneuver_list)
 
 
 
