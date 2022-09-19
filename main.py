@@ -161,7 +161,7 @@ def transfer_Geofence_to_Morton(geofence, m, resolution, resolution_search_space
 
     #df_array[(df_array.morton >= search_space[0]) & (df_array.morton <= search_space[1])].sort_values(by='morton').reset_index().plot(x='x', y='y', marker="o", ax=ax, label="SearchSpace")
 
-    np_ar = np.arange(search_space[0], search_space[1], resolution_search_space)
+    np_ar = np.arange(search_space[0], (search_space[1]+1), resolution_search_space)
     search_mask = pd.DataFrame(np_ar, columns = ['morton'])
     #print(len(search_mask))
 
@@ -252,21 +252,21 @@ def identifyNonRelvantAreas(m, geofence, search_mask, min_value_x, min_value_y, 
 
 
     if Q1 == False:
-        search_mask = search_mask.drop(search_mask[(search_mask.morton < Q1_range[1]+1) & (search_mask.morton > Q1_range[0])].index)
+        search_mask = search_mask.drop(search_mask[(search_mask.morton < Q1_range[1]+1) & (search_mask.morton >= Q1_range[0])].index)
     else:
         search_mask = identifyNonRelvantAreas(m, geofence, search_mask, min_value_x=min_value_x, min_value_y=min_value_y, max_value_x=half_value_x-1, max_value_y=half_value_y-1, offset=offset, faktor_multiply=faktor_multiply)
     if Q2 == False:
-        search_mask = search_mask.drop(search_mask[(search_mask.morton < Q2_range[1] + 1) & (search_mask.morton > Q2_range[0])].index)
+        search_mask = search_mask.drop(search_mask[(search_mask.morton < Q2_range[1] + 1) & (search_mask.morton >= Q2_range[0])].index)
     else:
         search_mask = identifyNonRelvantAreas(m, geofence, search_mask, min_value_x=half_value_x, min_value_y=min_value_y,
                                             max_value_x=max_value_x, max_value_y=half_value_y - 1, offset=offset, faktor_multiply=faktor_multiply)
     if Q3 == False:
-        search_mask = search_mask.drop(search_mask[(search_mask.morton < Q3_range[1] + 1) & (search_mask.morton > Q3_range[0])].index)
+        search_mask = search_mask.drop(search_mask[(search_mask.morton < Q3_range[1] + 1) & (search_mask.morton >= Q3_range[0])].index)
     else:
         search_mask = identifyNonRelvantAreas(m, geofence, search_mask, min_value_x=min_value_x, min_value_y=half_value_y,
                                             max_value_x=half_value_x - 1, max_value_y=max_value_y, offset=offset, faktor_multiply=faktor_multiply)
     if Q4 == False:
-        search_mask = search_mask.drop(search_mask[(search_mask.morton < Q4_range[1] + 1) & (search_mask.morton > Q4_range[0])].index)
+        search_mask = search_mask.drop(search_mask[(search_mask.morton < Q4_range[1] + 1) & (search_mask.morton >= Q4_range[0])].index)
     else:
         search_mask = identifyNonRelvantAreas(m, geofence, search_mask, min_value_x=half_value_x, min_value_y=half_value_y,
                                             max_value_x=max_value_x, max_value_y=max_value_y, offset=offset, faktor_multiply=faktor_multiply)
@@ -336,7 +336,7 @@ if __name__ == '__main__':
     print("Välkommen!")
     print("Load_Database...")
 
-    generate_masks = True
+    generate_masks = False
 
 #    df = pd.read_csv('C:/Users/LukasB/Documents/Chalmers/Data/Ausschnitte/Hard_Braking/braking_cut_8_brakes.csv', sep=';',
 #                     usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed',
@@ -396,7 +396,7 @@ if __name__ == '__main__':
     rechts_min = -4
 
     # geofence_list = [geofence]
-    geofence_list = define_geofences(geofence_resolution=1)
+    geofence_list = define_geofences(geofence_resolution=0.1)
 
     fence_x = 'accel_lon'
     fence_y = 'accel_trans'
