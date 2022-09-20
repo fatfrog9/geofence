@@ -38,7 +38,7 @@ class Setup:
 
 
 class DrivingStatus:
-    def __init__(self, name, fence, min_time, max_time, min_gap, max_gap, setup):
+    def __init__(self, name, fence, min_time, max_time, min_gap, max_gap, setup, color):
         self.name = name
         self.fence = fence
         self.min_time = min_time
@@ -46,6 +46,7 @@ class DrivingStatus:
         self.min_gap = min_gap
         self.max_gap = max_gap
         self.setup = setup
+        self.color = color
         self.geofence_list = define_geofences(geofence_resolution=self.setup.geofence_resolution, geofence=self.fence)
         self.search_mask = generate_Search_Mask(self.geofence_list, self.setup, store)
 
@@ -53,6 +54,7 @@ class DrivingStatus:
         return 'DrivingStatus ' + str(self.name) + os.linesep\
                + 'Duration: ' + str(self.min_time) + ' / ' + str(self.max_time) + os.linesep\
                + 'Gap (after): ' + str(self.min_gap) + ' / ' + str(self.max_gap) + os.linesep\
+               + 'Color: ' + str(self.color) + os.linesep\
                + 'Setup: ' + os.linesep + str(self.setup) + os.linesep\
                + 'Geofence_List:' + os.linesep + str(self.fence)
 
@@ -427,9 +429,9 @@ def scene_filter(df, search_mask):
 
 ################################################################
 
-def detect_single_maneuver(df, search_mask, min_duration_maneuver):
+def detect_single_maneuver(df, driving_status):
 
-    df_relevant_values = scene_filter(df, search_mask)
+    df_relevant_values = scene_filter(df, driving_status.search_mask)
 
     df_relevant_values = df_relevant_values.sort_values(by='ts').reset_index()
     df_relevant_values['diff_to_prev'] = df_relevant_values['ts'].diff()
@@ -450,7 +452,7 @@ def detect_single_maneuver(df, search_mask, min_duration_maneuver):
 
         maneuver_end_ts = df_relevant_values.loc[maneuver_idx-1, 'ts']
 
-        if (maneuver_end_ts - maneuver_start_ts) > min_duration_maneuver:
+        if ((maneuver_end_ts - maneuver_start_ts) > driving_status.min_time) & ((maneuver_end_ts - maneuver_start_ts) < driving_status.max_time):
 
             maneuver_list.append([maneuver_start_ts, maneuver_end_ts])
 
@@ -483,7 +485,7 @@ if __name__ == '__main__':
     # df = pd.read_csv('../Data/Ausschnitte/Hard_Braking/braking_cut_8_brakes.csv', sep=';',
     #                  usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed',
     #                           'accel_lon', 'accel_trans', 'accel_down'])
-    df = pd.read_csv('../Data/Ausschnitte/LaneChange/lanechange_single.csv', sep=';',
+    df = pd.read_csv('../Data/Ausschnitte/LaneChange/lanechange_mult.csv', sep=';',
                      usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed',
                               'accel_lon', 'accel_trans', 'accel_down'])
 
@@ -498,9 +500,9 @@ if __name__ == '__main__':
     # geofence
     fences = [[-1.5, -4], [-0.25, -0.75]]
     rechtsKurve = DrivingStatus(name='Kurve links', fence=[[-1.5, -4], [-0.25, -0.75]], min_time=500000, max_time=30000000,
-                                min_gap=0, max_gap=0, setup=setup)
+                                min_gap=0, max_gap=0, setup=setup, color='red')
     linksKurve = DrivingStatus(name='Kurve links', fence=[[-1.5, 0.75], [-0.25, 4]], min_time=500000, max_time=30000000,
-                                min_gap=0, max_gap=0, setup=setup)
+                                min_gap=0, max_gap=0, setup=setup, color='green')
 
 
     #geofence = [[-1.5,-4],[-0.25,-0.75]] # rechtskurve, beschleunigung
@@ -522,32 +524,28 @@ if __name__ == '__main__':
 
     print("Filter Data.")
     time_filter_start = time.time()
-    df_relevant_values = []
-    df_relevant_values.append(scene_filter(df, rechtsKurve.search_mask))
-    df_relevant_values.append(scene_filter(df, linksKurve.search_mask))
+    relevant_values_list = []
+    relevant_values_list.append(scene_filter(df, rechtsKurve.search_mask))
+    relevant_values_list.append(scene_filter(df, linksKurve.search_mask))
     time_filter_end = time.time()
+
+    print(relevant_values_list)
 
     print("Done: Time to identify relevant values in database:", round(time_filter_end-time_filter_start, 10), "s")
 
     driving_status_list = []
-    driving_status_list.append(detect_single_maneuver(df, rechtsKurve.search_mask, min_duration_maneuver))
-    driving_status_list.append(detect_single_maneuver(df, linksKurve.search_mask, min_duration_maneuver))
+    driving_status_list.append(detect_single_maneuver(df, rechtsKurve))
+    driving_status_list.append(detect_single_maneuver(df, linksKurve))
     print(driving_status_list)
 
     ################################################################
-    plot_Values(df, df_relevant_values, driving_status_list)
+    plot_Values(df, relevant_values_list, driving_status_list)
 
     fig, ax = plt.subplots(1)
     df.plot.scatter(x='morton', y='ts', color='blue', ax=ax)
-    df_relevant_values.plot.scatter(x='morton', y='ts', color='red', ax=ax)
 
-    geofence = [[-1.5, 0.75], [-0.25, 4]]
-    geofence_list = define_geofences(geofence_resolution=setup.geofence_resolution, geofence=geofence)
-
-    search_mask = generate_Search_Mask(geofence_list, setup, store)
-    df_relevant_values = scene_filter(df, search_mask)
-
-    df_relevant_values.plot.scatter(x='morton', y='ts', color='green', ax=ax)
+    for relevant in relevant_values_list:
+        relevant.plot.scatter(x='morton', y='ts', color='red', ax=ax)
 
     plt.show()
 
