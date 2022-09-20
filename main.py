@@ -95,9 +95,13 @@ def plot_Values(df, df_relevant_values, driving_status_list):
     #max = 30000000000
     bins = 400
 
+    # Morton space statisch
     ax[3].hist(df['morton'], bins=bins, range=(min, max), color='blue')
     ax[3].set_xlim(min, max)
     ax[3].set_ylim(0, 1)
+
+    #morton space zeitabhängig
+    # df.plot.scatter(x='ts', y='morton', color='blue', ax=ax[3])
 
     # add rote Punkte
     for relevant_temp in df_relevant_values:
@@ -107,7 +111,10 @@ def plot_Values(df, df_relevant_values, driving_status_list):
         # dritter Graph
         relevant_temp.plot(kind='scatter', x='accel_lon', y='accel_trans', color='red', ax=ax[2])
         # vierter Graph
+        # morton statisch
         ax[3].hist(relevant_temp['morton'], bins=bins, range=(min, max), color='red')
+        # morton zeitabhängig
+        #relevant_temp.plot.scatter(x='ts', y='morton', color='red', ax=ax[3])
 
     fig.tight_layout()
     plt.show()
@@ -196,6 +203,49 @@ def generate_ts(df):
 
 ################################################################
 
+def remove_background_noise(df, setup):
+
+    # vierte Reihe von unten
+    df = df.drop(df[(df.morton > 3140000) & (df.morton < 3170000)].index)
+    # dritte Reihe von unten
+    df = df.drop(df[(df.morton > 2410000) & (df.morton < 2460000)].index)
+    # zweite Reihe von unten
+    df = df.drop(df[(df.morton > 1720000) & (df.morton < 1770000)].index)
+    # unterste Zeile
+    df = df.drop(df[(df.morton > 1025000) & (df.morton < 1070000)].index)
+
+    return df
+
+################################################################
+
+def maskMortonSpace(df, min_M, max_M, duration_min, duration_max, setup):
+    # mit Vektorabfragen
+
+    df = df[(df['morton'] > min_M) & (df['morton'] < max_M)]
+    df = remove_background_noise(df, setup)
+    df = df.sort_values(by='ts').reset_index()
+    df['diff_to_prev'] = df['ts'].diff()
+
+    print(df)
+
+    if len(df) > 0:
+        start_ts = df['ts'][0]
+        end_ts = 0
+
+        maneuver_start_list = df[df['diff_to_prev'] > 120000].index #ein sample darf fehlen
+        if not len(maneuver_start_list) > 0:
+            maneuver_start_list.append(df.index[-1])
+
+        for man_start in maneuver_start_list:
+            end_ts = df.at['ts', man_start]
+
+        if ((end_ts - start_ts) > min_M) & ((end_ts - start_ts) < max_M):
+            print("linkskurve, dauer:", end_ts-start_ts)
+
+
+
+################################################################
+
 def generate_Search_Mask(geofence_list, setup, store):
     m = morton.Morton(dimensions=setup.dim, bits=setup.bits)
     time_filter_start = time.time()
@@ -207,7 +257,7 @@ def generate_Search_Mask(geofence_list, setup, store):
             geofence_temp[0][0]) + '_' + str(geofence_temp[0][1]) + '_' + str(geofence_temp[1][0]) + '_' + str(geofence_temp[1][1])
 
         if not searchmask_name in store:
-            if generate_masks_multithread == True:
+            if setup.generate_masks_multithread == True:
                 geofence_generate_parallel.append(geofence_temp)
             else:
                 print(searchmask_name + ' is not in store; Lets create it. This takes some time...')
@@ -409,10 +459,11 @@ def mp_worker(m, bits, offset, faktor_multiply, geofence_temp):
     #print("Done: ",geofence_temp, "Duration:", str(datetime.timedelta(seconds=round(time_filter_end - time_filter_start, 5))))
     return search_mask, geofence_temp
 
-def mp_handler(geofence_list, dim, bits, res_searchmask, m, offset, faktor_multiply):
+def mp_handler(geofence_list, dim, bits, geofence_resolution, m, offset, faktor_multiply):
     p = multiprocessing.Pool(int(multiprocessing.cpu_count()))
     partial_call = functools.partial(mp_worker, m, bits, offset, faktor_multiply)
 
+    #TODO: die Liste geofence_list teilen, sodass immer mal wieder zwischengespeichert wird
     for search_mask, geofence_temp in p.map(partial_call, geofence_list):
         searchmask_name = str(dim) + '/' + str(bits) + '/' + str(geofence_resolution) + '/' + str(offset) + '/' + str(faktor_multiply) + '/SearchMask_' + str(geofence_temp[0][0]) + '_' + str(geofence_temp[0][1]) + '_' + str(geofence_temp[1][0]) + '_' + str(geofence_temp[1][1])
 
@@ -441,27 +492,29 @@ def detect_single_maneuver(df, driving_status):
 
 
     maneuver_start_list = list(df_relevant_values[df_relevant_values['diff_to_prev'] > min_time_between_two_independent_maneuvers].index)
-    maneuver_start_list.append(df_relevant_values.index[-1])
-
-
-    maneuver_start_idx = 0
-    maneuver_start_ts = df_relevant_values.loc[maneuver_start_idx, 'ts']
-
     maneuver_list = []
-    for maneuver_idx in maneuver_start_list:
 
-        maneuver_end_ts = df_relevant_values.loc[maneuver_idx-1, 'ts']
+    if len(df_relevant_values) > 0:
+        maneuver_start_list.append(df_relevant_values.index[-1])
 
-        if ((maneuver_end_ts - maneuver_start_ts) > driving_status.min_time) & ((maneuver_end_ts - maneuver_start_ts) < driving_status.max_time):
-
-            maneuver_list.append([maneuver_start_ts, maneuver_end_ts])
-
-            # start_date = datetime.datetime.fromtimestamp(maneuver_start_ts/1000000, datetime.timezone(datetime.timedelta(hours=1)))
-            # end_date = datetime.datetime.fromtimestamp(maneuver_end_ts / 1000000,datetime.timezone(datetime.timedelta(hours=1)))
-            # print("Maneuver detected! Start:",start_date , " End:", end_date)
-
-        maneuver_start_idx = maneuver_idx
+        maneuver_start_idx = 0
         maneuver_start_ts = df_relevant_values.loc[maneuver_start_idx, 'ts']
+
+
+        for maneuver_idx in maneuver_start_list:
+
+            maneuver_end_ts = df_relevant_values.loc[maneuver_idx-1, 'ts']
+
+            if ((maneuver_end_ts - maneuver_start_ts) > driving_status.min_time) & ((maneuver_end_ts - maneuver_start_ts) < driving_status.max_time):
+
+                maneuver_list.append([maneuver_start_ts, maneuver_end_ts])
+
+                # start_date = datetime.datetime.fromtimestamp(maneuver_start_ts/1000000, datetime.timezone(datetime.timedelta(hours=1)))
+                # end_date = datetime.datetime.fromtimestamp(maneuver_end_ts / 1000000,datetime.timezone(datetime.timedelta(hours=1)))
+                # print("Maneuver detected! Start:",start_date , " End:", end_date)
+
+            maneuver_start_idx = maneuver_idx
+            maneuver_start_ts = df_relevant_values.loc[maneuver_start_idx, 'ts']
 
     return maneuver_list
 
@@ -485,9 +538,7 @@ if __name__ == '__main__':
     # df = pd.read_csv('../Data/Ausschnitte/Hard_Braking/braking_cut_8_brakes.csv', sep=';',
     #                  usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed',
     #                           'accel_lon', 'accel_trans', 'accel_down'])
-    df = pd.read_csv('../Data/Ausschnitte/LaneChange/lanechange_mult.csv', sep=';',
-                     usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed',
-                              'accel_lon', 'accel_trans', 'accel_down'])
+    df = pd.read_csv('../Data/Ausschnitte/LaneChange/lanechange_single.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
 
     ################################################################
 
@@ -496,6 +547,9 @@ if __name__ == '__main__':
 
     df = calc_Morton(df=df, setup=setup)
 
+    dff = remove_background_noise(df, setup)
+    dff_temp = maskMortonSpace(df, 2470000, 2580000, 2000000, 5000000, setup)
+
     ################################################################
     # geofence
     fences = [[-1.5, -4], [-0.25, -0.75]]
@@ -503,6 +557,8 @@ if __name__ == '__main__':
                                 min_gap=0, max_gap=0, setup=setup, color='red')
     linksKurve = DrivingStatus(name='Kurve links', fence=[[-1.5, 0.75], [-0.25, 4]], min_time=500000, max_time=30000000,
                                 min_gap=0, max_gap=0, setup=setup, color='green')
+    #startBremsen = DrivingStatus(name='Kurve links', fence=[[3, -4], [10, 4]], min_time=500000, max_time=30000000,
+    #                           min_gap=0, max_gap=0, setup=setup, color='green')
 
 
     #geofence = [[-1.5,-4],[-0.25,-0.75]] # rechtskurve, beschleunigung
@@ -527,6 +583,7 @@ if __name__ == '__main__':
     relevant_values_list = []
     relevant_values_list.append(scene_filter(df, rechtsKurve.search_mask))
     relevant_values_list.append(scene_filter(df, linksKurve.search_mask))
+    #relevant_values_list.append(scene_filter(df, startBremsen.search_mask))
     time_filter_end = time.time()
 
     print(relevant_values_list)
@@ -536,16 +593,26 @@ if __name__ == '__main__':
     driving_status_list = []
     driving_status_list.append(detect_single_maneuver(df, rechtsKurve))
     driving_status_list.append(detect_single_maneuver(df, linksKurve))
+    #driving_status_list.append(detect_single_maneuver(df, startBremsen))
     print(driving_status_list)
 
     ################################################################
     plot_Values(df, relevant_values_list, driving_status_list)
 
-    fig, ax = plt.subplots(1)
-    df.plot.scatter(x='morton', y='ts', color='blue', ax=ax)
 
+    fig, ax = plt.subplots(2, gridspec_kw = {'height_ratios': [1, 7]})
+
+    df.plot(x='ts', y=['accel_lon', 'accel_trans'], ax=ax[0])
+    for driving_status_temp in driving_status_list:
+        color = 'red'
+        for status in driving_status_temp:
+            ax[0].add_patch(
+                Rectangle((status[0], -4), status[1] - status[0], 8, fill=False, color='red', lw=1.5))
+
+    df.plot.scatter(x='ts', y='morton', color='grey', ax=ax[1], s=15)
+    dff.plot.scatter(x='ts', y='morton', color='blue', ax=ax[1], s=11)
     for relevant in relevant_values_list:
-        relevant.plot.scatter(x='morton', y='ts', color='red', ax=ax)
+        relevant.plot.scatter(x='ts', y='morton', color='red', ax=ax[1], s=5)
 
     plt.show()
 
