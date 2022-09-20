@@ -20,10 +20,16 @@ def plot_Values(df, dff, maneuver_list):
     fig, ax = plt.subplots(4, gridspec_kw={'height_ratios': [3, 3, 3, 1]})
 
     df.plot(x='lon', y='lat', ax=ax[0], color = 'blue')
-    dff.plot.scatter(x='lon', y='lat', ax=ax[0], color = 'red')
+    # dff.plot.scatter(x='lon', y='lat', ax=ax[0], color = 'red')
+
+    cnt = 0
+    for maneuver in maneuver_list:
+        maneuver_df_temp = df.loc[(df.ts > maneuver[0]) & (df.ts < maneuver[1])]
+        maneuver_df_temp.plot.scatter(x='lon', y='lat', ax=ax[0], color='red')
+        # ax[0].annotate("Maneuver: " + str(cnt), maneuver_df_temp.iloc[-1]['lon'], maneuver_df_temp.iloc[-1]['lat'])
+        cnt += 1
 
     df.plot(x='ts', y=['accel_lon', 'accel_trans', 'accel_down'], ax=ax[1])
-
     # Kästen mit Maneuvern plotten
     for maneuver in maneuver_list:
         ax[1].add_patch(
@@ -181,8 +187,6 @@ def generate_Search_Mask(geofence_list, dim, bits, geofence_resolution, offset, 
             sys.exit("Error while loading SearchMask.")
 
     print("Done: SearchMask contains", len(search_mask.index), "values.")
-
-    store.close()
 
     return search_mask
 
@@ -425,25 +429,25 @@ if __name__ == '__main__':
     store = pd.HDFStore("searchMaskStorage.h5")
 
     # geofence
-    geofence = [[-1.5,-4],[0.5,-0.75]] # rechtskurve, beschleunigung
+    geofence = [[-1.5,-4],[-0.25,-0.75]] # rechtskurve, beschleunigung
     #geofence = [[-1.5, 0.75], [1, 4]]  # linksskurve
 
-    min_duration_maneuver = 500000 # roughly 10 datapoints
+    min_duration_maneuver = 500000 # 30000000 # 500000 # roughly 10 datapoints
     min_time_between_two_independent_maneuvers = 500000
 
     geofence_list = define_geofences(geofence_resolution=geofence_resolution, geofence=geofence)
     ################################################################
 
     print("Load_Database...")
-    # df = pd.read_csv('../Data/Ausschnitte/opendlv.device.gps.pos.Grp1Data-0.csv', sep=';',
-    #                  usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed',
-    #                           'accel_lon', 'accel_trans', 'accel_down'])
+    #df = pd.read_csv('../Data/Ausschnitte/opendlv.device.gps.pos.Grp1Data-0.csv', sep=';',
+    #                 usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed',
+    #                          'accel_lon', 'accel_trans', 'accel_down'])
     # df = pd.read_csv('../Data/Ausschnitte/Hard_Braking/braking_cut_8_brakes.csv', sep=';',
     #                  usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed',
     #                           'accel_lon', 'accel_trans', 'accel_down'])
-    df = pd.read_csv('../Data/Ausschnitte/LaneChange/lanechange_mult.csv', sep=';',
-                     usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed',
-                              'accel_lon', 'accel_trans', 'accel_down'])
+    df = pd.read_csv('../Data/Ausschnitte/LaneChange/lanechange_single.csv', sep=';',
+                      usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed',
+                               'accel_lon', 'accel_trans', 'accel_down'])
 
     ################################################################
 
@@ -470,6 +474,23 @@ if __name__ == '__main__':
 
     ################################################################
     plot_Values(df, df_relevant_values, maneuver_list)
+
+    fig, ax = plt.subplots(1)
+    df.plot(x='morton', y='ts', color='blue', ax=ax)
+    df_relevant_values.plot.scatter(x='morton', y='ts', color='red', ax=ax)
+
+    geofence = [[-1.5, 0.75], [-0.25, 4]]
+    geofence_list = define_geofences(geofence_resolution=geofence_resolution, geofence=geofence)
+
+    search_mask = generate_Search_Mask(geofence_list, dim, bits, geofence_resolution, offset, faktor_multiply, store, m)
+    df_relevant_values = scene_filter(df, search_mask)
+
+    df_relevant_values.plot.scatter(x='morton', y='ts', color='green', ax=ax)
+
+    plt.show()
+
+    store.close()
+
 
 
 
