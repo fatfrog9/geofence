@@ -238,9 +238,9 @@ def maskMortonSpace(df, min_M, max_M, duration_min, duration_max, setup):
 
         for man_start in maneuver_start_list:
             end_ts = df.at['ts', man_start]
-
-        if ((end_ts - start_ts) > min_M) & ((end_ts - start_ts) < max_M):
-            print("linkskurve, dauer:", end_ts-start_ts)
+            if ((end_ts - start_ts) > min_M) & ((end_ts - start_ts) < max_M):
+                print("linkskurve, dauer:", end_ts-start_ts)
+            start_ts
 
 
 
