@@ -14,33 +14,76 @@ from rich.console import Console
 import multiprocessing
 import functools
 import warnings
+import os
+
+class Setup:
+    def __init__(self, generate_masks_multithread, offset, faktor_multiply, geofence_resolution, max_accel, bits, dim):
+        self.generate_masks_multithread = generate_masks_multithread
+        self.offset = offset
+        self.faktor_multiply = faktor_multiply
+        self.geofence_resolution = geofence_resolution
+        self.max_accel = max_accel
+        self.bits = bits
+        self.dim = dim
+
+    def __str__(self):
+        return 'generate_masks_multithread ' + str(self.generate_masks_multithread) + os.linesep\
+               + 'offset:' + str(self.offset) + os.linesep \
+               + 'faktor_multiply:' + str(self.faktor_multiply) + os.linesep \
+               + 'geofence_resolution:' + str(self.geofence_resolution) + os.linesep \
+               + 'max_accel:' + str(self.max_accel) + os.linesep \
+               + 'bits:' + str(self.bits) + os.linesep \
+               + 'dim:' + str(self.dim)
 
 
-def plot_Values(df, dff, maneuver_list):
+
+class DrivingStatus:
+    def __init__(self, name, fence, min_time, max_time, min_gap, max_gap, setup):
+        self.name = name
+        self.fence = fence
+        self.min_time = min_time
+        self.max_time = max_time
+        self.min_gap = min_gap
+        self.max_gap = max_gap
+        self.setup = setup
+        self.geofence_list = define_geofences(geofence_resolution=self.setup.geofence_resolution, geofence=self.fence)
+        self.search_mask = generate_Search_Mask(self.geofence_list, self.setup, store)
+
+    def __str__(self):
+        return 'DrivingStatus ' + str(self.name) + os.linesep\
+               + 'Duration: ' + str(self.min_time) + ' / ' + str(self.max_time) + os.linesep\
+               + 'Gap (after): ' + str(self.min_gap) + ' / ' + str(self.max_gap) + os.linesep\
+               + 'Setup: ' + os.linesep + str(self.setup) + os.linesep\
+               + 'Geofence_List:' + os.linesep + str(self.fence)
+
+
+
+
+def plot_Values(df, df_relevant_values, driving_status_list):
     fig, ax = plt.subplots(4, gridspec_kw={'height_ratios': [3, 3, 3, 1]})
 
     df.plot(x='lon', y='lat', ax=ax[0], color = 'blue')
     # dff.plot.scatter(x='lon', y='lat', ax=ax[0], color = 'red')
 
     cnt = 0
-    for maneuver in maneuver_list:
-        maneuver_df_temp = df.loc[(df.ts > maneuver[0]) & (df.ts < maneuver[1])]
-        maneuver_df_temp.plot.scatter(x='lon', y='lat', ax=ax[0], color='red')
-        # ax[0].annotate("Maneuver: " + str(cnt), maneuver_df_temp.iloc[-1]['lon'], maneuver_df_temp.iloc[-1]['lat'])
-        cnt += 1
+    for driving_status_temp in driving_status_list:
+        color = 'red'
+        for status in driving_status_temp:
+            maneuver_df_temp = df.loc[(df.ts > status[0]) & (df.ts < status[1])]
+            maneuver_df_temp.plot.scatter(x='lon', y='lat', ax=ax[0], color=color)
+            # ax[0].annotate("Maneuver: " + str(cnt), maneuver_df_temp.iloc[-1]['lon'], maneuver_df_temp.iloc[-1]['lat'])
+            cnt += 1
 
-    df.plot(x='ts', y=['accel_lon', 'accel_trans', 'accel_down'], ax=ax[1])
+    df.plot(x='ts', y=['accel_lon', 'accel_trans'], ax=ax[1])
     # Kästen mit Maneuvern plotten
-    for maneuver in maneuver_list:
-        ax[1].add_patch(
-            Rectangle((maneuver[0], -4), maneuver[1] - maneuver[0], 8, fill=False, color='red', lw=1.5))
-    # rote Punkte in 2. Graph
-    dff.plot.scatter(x='ts', y='accel_lon', color='red', ax=ax[1])
-    dff.plot.scatter(x='ts', y='accel_trans', color='red', ax=ax[1])
+
+    for driving_status_temp in driving_status_list:
+        color = 'red'
+        for status in driving_status_temp:
+            ax[1].add_patch(
+                Rectangle((status[0], -4), status[1] - status[0], 8, fill=False, color='red', lw=1.5))
 
     df.plot(kind='scatter', x='accel_lon', y='accel_trans', color=df['ts'], ax=ax[2])
-    # ax[2].add_patch(Rectangle((geofence[0][0], geofence[0][1]), geofence[1][0] - geofence[0][0],geofence[1][1] - geofence[0][1], fill=False, color='red', lw=2))
-    dff.plot(kind='scatter', x='accel_lon', y='accel_trans', color='red', ax=ax[2])
 
     min = df['morton'].min()
     max = df['morton'].max()
@@ -51,9 +94,18 @@ def plot_Values(df, dff, maneuver_list):
     bins = 400
 
     ax[3].hist(df['morton'], bins=bins, range=(min, max), color='blue')
-    ax[3].hist(dff['morton'], bins=bins, range=(min, max), color='red')
     ax[3].set_xlim(min, max)
     ax[3].set_ylim(0, 1)
+
+    # add rote Punkte
+    for relevant_temp in df_relevant_values:
+        # zweiter Gtraph
+        relevant_temp.plot.scatter(x='ts', y='accel_lon', color='red', ax=ax[1])
+        relevant_temp.plot.scatter(x='ts', y='accel_trans', color='red', ax=ax[1])
+        # dritter Graph
+        relevant_temp.plot(kind='scatter', x='accel_lon', y='accel_trans', color='red', ax=ax[2])
+        # vierter Graph
+        ax[3].hist(relevant_temp['morton'], bins=bins, range=(min, max), color='red')
 
     fig.tight_layout()
     plt.show()
@@ -111,25 +163,25 @@ def precondition_data(df, max_accel):
 
 ################################################################
 
-def calc_Morton(df, dimension, bits, offset, faktor_multiply):
+def calc_Morton(df, setup):
 
-    df['accel_lon_mult'] = df['accel_lon'].add(offset)
-    df['accel_trans_mult'] = df['accel_trans'].add(offset)
-    df['accel_down_mult'] = df['accel_down'].add(offset)
+    df['accel_lon_mult'] = df['accel_lon'].add(setup.offset)
+    df['accel_trans_mult'] = df['accel_trans'].add(setup.offset)
+    df['accel_down_mult'] = df['accel_down'].add(setup.offset)
 
 
-    df['accel_lon_mult'] = df.apply(lambda x: int(x['accel_lon_mult'] * faktor_multiply), axis=1)
-    df['accel_trans_mult'] = df.apply(lambda x: int(x['accel_trans_mult'] * faktor_multiply), axis=1)
-    df['accel_down_mult'] = df.apply(lambda x: int(x['accel_down_mult'] * faktor_multiply), axis=1)
+    df['accel_lon_mult'] = df.apply(lambda x: int(x['accel_lon_mult'] * setup.faktor_multiply), axis=1)
+    df['accel_trans_mult'] = df.apply(lambda x: int(x['accel_trans_mult'] * setup.faktor_multiply), axis=1)
+    df['accel_down_mult'] = df.apply(lambda x: int(x['accel_down_mult'] * setup.faktor_multiply), axis=1)
 
-    m = morton.Morton(dimensions=dimension, bits=bits)
+    m = morton.Morton(dimensions=setup.dim, bits=setup.bits)
 
     def set_value(row):
         return m.pack(int(row['accel_lon_mult']), int(row['accel_trans_mult']))
 
     df['morton'] = df.apply(set_value, axis=1)
 
-    return df, m
+    return df
 
 ################################################################
 
@@ -142,12 +194,14 @@ def generate_ts(df):
 
 ################################################################
 
-def generate_Search_Mask(geofence_list, dim, bits, geofence_resolution, offset, faktor_multiply, store, m):
+def generate_Search_Mask(geofence_list, setup, store):
+    m = morton.Morton(dimensions=setup.dim, bits=setup.bits)
     time_filter_start = time.time()
+    geofence_generate_parallel = []
     geofence_generate_parallel = []
 
     for geofence_temp in geofence_list:
-        searchmask_name = str(dim) + '/' + str(bits) + '/' + str(geofence_resolution) + '/' + str(offset) + '/' + str(faktor_multiply) + '/SearchMask_' + str(
+        searchmask_name = str(setup.dim) + '/' + str(setup.bits) + '/' + str(setup.geofence_resolution) + '/' + str(setup.offset) + '/' + str(setup.faktor_multiply) + '/SearchMask_' + str(
             geofence_temp[0][0]) + '_' + str(geofence_temp[0][1]) + '_' + str(geofence_temp[1][0]) + '_' + str(geofence_temp[1][1])
 
         if not searchmask_name in store:
@@ -156,7 +210,7 @@ def generate_Search_Mask(geofence_list, dim, bits, geofence_resolution, offset, 
             else:
                 print(searchmask_name + ' is not in store; Lets create it. This takes some time...')
                 time_filter_start = time.time()
-                search_mask_temp = transfer_Geofence_to_Morton(geofence_temp, m, bits, 1, offset, faktor_multiply)
+                search_mask_temp = transfer_Geofence_to_Morton(geofence_temp, m, setup.bits, 1, setup.offset, setup.faktor_multiply)
                 search_mask = pd.concat([search_mask, search_mask_temp], axis = 0)
                 time_filter_end = time.time()
                 print("Time to transfer geofence in morton", round(time_filter_end - time_filter_start, 5), "s; containing",
@@ -165,7 +219,7 @@ def generate_Search_Mask(geofence_list, dim, bits, geofence_resolution, offset, 
     # generate Masks Multithread
     if len(geofence_generate_parallel) > 0:
         print("Generate missing Searchmasks...")
-        mp_handler(geofence_generate_parallel, dim, bits, geofence_resolution, m, offset, faktor_multiply)
+        mp_handler(geofence_generate_parallel, setup.dim, setup.bits, setup.geofence_resolution, m, setup.offset, setup.faktor_multiply)
     time_filter_end = time.time()
 
 
@@ -173,7 +227,7 @@ def generate_Search_Mask(geofence_list, dim, bits, geofence_resolution, offset, 
     print("Load Search Masks from Storage.")
     #load Masks
     for geofence_temp in geofence_list:
-        searchmask_name = str(dim) + '/' + str(bits) + '/' + str(geofence_resolution) + '/' + str(offset) + '/' + str(faktor_multiply) + '/SearchMask_' + str(geofence_temp[0][0]) + '_' + str(geofence_temp[0][1]) + '_' + str(geofence_temp[1][0]) + '_' + str(geofence_temp[1][1])
+        searchmask_name = str(setup.dim) + '/' + str(setup.bits) + '/' + str(setup.geofence_resolution) + '/' + str(setup.offset) + '/' + str(setup.faktor_multiply) + '/SearchMask_' + str(geofence_temp[0][0]) + '_' + str(geofence_temp[0][1]) + '_' + str(geofence_temp[1][0]) + '_' + str(geofence_temp[1][1])
 
         if searchmask_name in store:
             #print("Load SearchMask: ", str(searchmask_name), " from storage.")
@@ -417,72 +471,80 @@ if __name__ == '__main__':
 
     print("Välkommen!")
 
-    generate_masks_multithread = True
-    offset = 10
-    faktor_multiply = 100
-    geofence_resolution = 0.25
-    max_accel = 10
-    bits = 18
-    dim = 2
-
-
+    setup = Setup(True, 10, 100, 0.25, 10, 18, 2)
     store = pd.HDFStore("searchMaskStorage.h5")
 
-    # geofence
-    geofence = [[-1.5,-4],[-0.25,-0.75]] # rechtskurve, beschleunigung
-    #geofence = [[-1.5, 0.75], [1, 4]]  # linksskurve
-
-    min_duration_maneuver = 500000 # 30000000 # 500000 # roughly 10 datapoints
-    min_time_between_two_independent_maneuvers = 500000
-
-    geofence_list = define_geofences(geofence_resolution=geofence_resolution, geofence=geofence)
     ################################################################
 
     print("Load_Database...")
-    #df = pd.read_csv('../Data/Ausschnitte/opendlv.device.gps.pos.Grp1Data-0.csv', sep=';',
+    # df = pd.read_csv('../Data/Ausschnitte/opendlv.device.gps.pos.Grp1Data-0.csv', sep=';',
     #                 usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed',
     #                          'accel_lon', 'accel_trans', 'accel_down'])
     # df = pd.read_csv('../Data/Ausschnitte/Hard_Braking/braking_cut_8_brakes.csv', sep=';',
     #                  usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed',
     #                           'accel_lon', 'accel_trans', 'accel_down'])
     df = pd.read_csv('../Data/Ausschnitte/LaneChange/lanechange_single.csv', sep=';',
-                      usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed',
-                               'accel_lon', 'accel_trans', 'accel_down'])
+                     usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed',
+                              'accel_lon', 'accel_trans', 'accel_down'])
 
     ################################################################
 
     df = generate_ts(df)
-    df = precondition_data(df, max_accel)
+    df = precondition_data(df, setup.max_accel)
 
-    df, m = calc_Morton(df=df, dimension=2, bits=bits, offset=offset, faktor_multiply=faktor_multiply)
+    df = calc_Morton(df=df, setup=setup)
 
     ################################################################
+    # geofence
+    fences = [[-1.5, -4], [-0.25, -0.75]]
+    rechtsKurve = DrivingStatus(name='Kurve links', fence=[[-1.5, -4], [-0.25, -0.75]], min_time=500000, max_time=30000000,
+                                min_gap=0, max_gap=0, setup=setup)
+    linksKurve = DrivingStatus(name='Kurve links', fence=[[-1.5, 0.75], [-0.25, 4]], min_time=500000, max_time=30000000,
+                                min_gap=0, max_gap=0, setup=setup)
 
-    print("Define Search Mask.")
-    search_mask = generate_Search_Mask(geofence_list, dim, bits, geofence_resolution, offset, faktor_multiply, store, m)
+
+    #geofence = [[-1.5,-4],[-0.25,-0.75]] # rechtskurve, beschleunigung
+    #geofence = [[-1.5, 0.75], [1, 4]]  # linksskurve
+
+    #geofence_list = define_geofences(geofence_resolution=setup.geofence_resolution, geofence=geofence)
+
+
+
+    min_duration_maneuver = 500000 # 30000000 # 500000 # roughly 10 datapoints
+    min_time_between_two_independent_maneuvers = 500000
+
+
+
+    #print("Define Search Mask.")
+    #search_mask = generate_Search_Mask(geofence_list, setup, store)
 
     ################################################################
 
     print("Filter Data.")
     time_filter_start = time.time()
-    df_relevant_values = scene_filter(df, search_mask)
+    df_relevant_values = []
+    df_relevant_values.append(scene_filter(df, rechtsKurve.search_mask))
+    df_relevant_values.append(scene_filter(df, linksKurve.search_mask))
     time_filter_end = time.time()
 
-    print("Done: Time to identify relevant values in database:", round(time_filter_end-time_filter_start, 10), "s; containing", len(df_relevant_values.index), "relevant values.")
+    print("Done: Time to identify relevant values in database:", round(time_filter_end-time_filter_start, 10), "s")
 
-    maneuver_list = detect_single_maneuver(df, search_mask, min_duration_maneuver)
+    driving_status_list = []
+    driving_status_list.append(detect_single_maneuver(df, rechtsKurve.search_mask, min_duration_maneuver))
+    driving_status_list.append(detect_single_maneuver(df, linksKurve.search_mask, min_duration_maneuver))
+    print(driving_status_list)
 
     ################################################################
-    plot_Values(df, df_relevant_values, maneuver_list)
+    plot_Values(df, df_relevant_values, driving_status_list)
 
     fig, ax = plt.subplots(1)
-    df.plot(x='morton', y='ts', color='blue', ax=ax)
+    df.plot.scatter(x='morton', y='ts', color='blue', ax=ax)
     df_relevant_values.plot.scatter(x='morton', y='ts', color='red', ax=ax)
 
     geofence = [[-1.5, 0.75], [-0.25, 4]]
-    geofence_list = define_geofences(geofence_resolution=geofence_resolution, geofence=geofence)
+    geofence_list = define_geofences(geofence_resolution=setup.geofence_resolution, geofence=geofence)
 
-    search_mask = generate_Search_Mask(geofence_list, dim, bits, geofence_resolution, offset, faktor_multiply, store, m)
+    search_mask = generate_Search_Mask(geofence_list, setup, store)
     df_relevant_values = scene_filter(df, search_mask)
 
     df_relevant_values.plot.scatter(x='morton', y='ts', color='green', ax=ax)
