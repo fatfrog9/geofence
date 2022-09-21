@@ -17,6 +17,7 @@ import warnings
 import os
 from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
+import base64
 
 class Setup:
     def __init__(self, generate_masks_multithread, offset, faktor_multiply, geofence_resolution, max_accel, bits, dim):
@@ -65,7 +66,7 @@ class DrivingStatus:
 
 
 
-def plot_Values(df, df_relevant_values, driving_status_list):
+def plot_Values(df, df_relevant_values, driving_status_list, label):
     fig, ax = plt.subplots(4, gridspec_kw={'height_ratios': [3, 3, 3, 1]})
 
     df.plot(x='lon', y='lat', ax=ax[0], color = 'blue')
@@ -107,11 +108,14 @@ def plot_Values(df, df_relevant_values, driving_status_list):
     #morton space zeitabhängig
     # df.plot.scatter(x='ts', y='morton', color='blue', ax=ax[3])
 
+    for idx, row in label.iterrows():
+        ax[1].annotate(row['label'], (row['ts'], 2.5), rotation=60)
+
     # add rote Punkte
     for relevant_temp in df_relevant_values:
         # zweiter Gtraph
-        relevant_temp.plot.scatter(x='ts', y='accel_lon', color='red', ax=ax[1])
-        relevant_temp.plot.scatter(x='ts', y='accel_trans', color='red', ax=ax[1])
+        #relevant_temp.plot.scatter(x='ts', y='accel_lon', color='red', ax=ax[1])
+        #relevant_temp.plot.scatter(x='ts', y='accel_trans', color='red', ax=ax[1])
         # dritter Graph
         relevant_temp.plot(kind='scatter', x='accel_lon', y='accel_trans', color='red', ax=ax[2])
         # vierter Graph
@@ -120,7 +124,7 @@ def plot_Values(df, df_relevant_values, driving_status_list):
         # morton zeitabhängig
         #relevant_temp.plot.scatter(x='ts', y='morton', color='red', ax=ax[3])
 
-    fig.tight_layout()
+    #fig.tight_layout()
     plt.show()
 
 ################################################################
@@ -551,6 +555,8 @@ def detect_maneuver_combination(df, maneuver_obj_list):
 
     status_prev_obj = maneuver_obj_list[0]
 
+    cnt_obj = len(maneuver_obj_list)
+
     for status_obj in maneuver_obj_list:
         if not status_obj == status_prev_obj:
             for status_prev in status_prev_obj.maneuver_list:
@@ -562,14 +568,26 @@ def detect_maneuver_combination(df, maneuver_obj_list):
                         driving_maneuver_list.append([[status_prev[0], status_curr[1]]])
             status_prev_obj = status_obj
 
+
+
     driving_status_list = []
     relevant_values_list = []
     for cur_obj in maneuver_obj_list:
         driving_status_list.append(cur_obj.maneuver_list)
         relevant_values_list.append(cur_obj.relevant_values_list)
 
+    # status_prev_obj = maneuver_obj_list[0]
+    # for status_cur_obj in maneuver_obj_list:
+    #     if not status_cur_obj == status_prev_obj:
+    #         recursive_Maneuver_Search(status_prev_obj, status_cur_obj)
 
     return driving_maneuver_list, driving_status_list, relevant_values_list
+
+################################################################
+
+def recursive_Maneuver_Search(man_idx, status_idx, maneuver_obj_list):
+
+    return True
 
 ################################################################
 
@@ -591,12 +609,24 @@ if __name__ == '__main__':
     # df = pd.read_csv('../Data/Ausschnitte/Hard_Braking/braking_cut_8_brakes.csv', sep=';',
     #                  usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed',
     #                           'accel_lon', 'accel_trans', 'accel_down'])
-    # df = pd.read_csv('../Data/Ausschnitte/LaneChange/lanechange_mult.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
-    df = pd.read_csv('../Data/Messfahrten/Lindholmen_2/opendlv.device.gps.pos.Grp1Data-0.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
+    # df = pd.read_csv('../Data/Ausschnitte/LaneChange/lanechange_20220921_all.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
+    #df = pd.read_csv('../Data/Ausschnitte/LaneChange/motorway.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
+    df = pd.read_csv('../Data/Ausschnitte/Noise/noise_complete_no_curve.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
+    # df = pd.read_csv('../Data/Messfahrten/Lindholmen_2/opendlv.device.gps.pos.Grp1Data-0.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
+    #df = pd.read_csv('../Data/Messfahrten/20220921/CSV/Motorway_Roundabout/opendlv.device.gps.pos.Grp1Data-0.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
 
+    #label = pd.read_csv('../Data/Messfahrten/20220921/CSV/Testgelaende/Testgelaende_noise_LC/opendlv.system.LogMessage-999.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'description'])
+    label = pd.read_csv('../Data/Messfahrten/20220921/CSV/Motorway_Roundabout/opendlv.system.LogMessage-999.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds','description'])
+    label = generate_ts(label)
+    label['label'] = label['description'].apply(lambda b: str(base64.b64decode(b)))
+    label = label[label['label'].str.contains("round") == True]
+    label = label.drop(columns='description')
+
+    print("The length of data is:", len(df))
     ################################################################
 
     df = generate_ts(df)
+
     df = precondition_data(df, setup.max_accel)
 
     df = calc_Morton(df=df, setup=setup)
@@ -607,9 +637,9 @@ if __name__ == '__main__':
     ################################################################
     # geofence
     fences = [[-1.5, -4], [-0.25, -0.75]]
-    rechtsKurve = DrivingStatus(name='Kurve rechts', fence=[[-1.5, -4], [0.75, -0.75]], min_time=500000, max_time=30000000,
+    rechtsKurve = DrivingStatus(name='Kurve rechts', fence=[[-1.5, -5], [0.75, -0.75]], min_time=500000, max_time=30000000,
                                 min_gap=0, max_gap=2000000, setup=setup, color='red')
-    linksKurve = DrivingStatus(name='Kurve links', fence=[[-1.5, 0.75], [0.75, 4]], min_time=500000, max_time=30000000,
+    linksKurve = DrivingStatus(name='Kurve links', fence=[[-1.5, 0.75], [0.75, 5]], min_time=500000, max_time=30000000,
                                 min_gap=0, max_gap=2000000, setup=setup, color='green')
     #startBremsen = DrivingStatus(name='Kurve links', fence=[[3, -4], [10, 4]], min_time=500000, max_time=30000000,
     #                           min_gap=0, max_gap=0, setup=setup, color='green')
@@ -617,7 +647,7 @@ if __name__ == '__main__':
     maneuver_obj_list = []
     maneuver_obj_list.append(linksKurve)
     maneuver_obj_list.append(rechtsKurve)
-    maneuver_obj_list.append(linksKurve)
+    #maneuver_obj_list.append(linksKurve)
     #geofence = [[-1.5,-4],[-0.25,-0.75]] # rechtskurve, beschleunigung
     #geofence = [[-1.5, 0.75], [1, 4]]  # linksskurve
 
@@ -645,18 +675,22 @@ if __name__ == '__main__':
     print("Done: Time to detect maneuvers", round(time_filter_end-time_filter_start, 10), "s")
 
     ################################################################
-    plot_Values(df, relevant_values_list, driving_maneuver_list)
+    plot_Values(df, relevant_values_list, driving_maneuver_list, label)
 
-    print(driving_maneuver_list)
+    # print(driving_maneuver_list)
 
     fig, ax = plt.subplots(2, gridspec_kw = {'height_ratios': [1, 7]})
 
     df.plot(x='ts', y=['accel_lon', 'accel_trans'], ax=ax[0])
-    for driving_status_temp in driving_status_list:
+
+    for driving_status_temp in driving_maneuver_list:
         color = 'red'
         for status in driving_status_temp:
             ax[0].add_patch(
                 Rectangle((status[0], -4), status[1] - status[0], 8, fill=False, color='red', lw=1.5))
+
+    for idx, row in label.iterrows():
+        ax[0].annotate(row['label'], (row['ts'], 2.5), rotation=60)
 
     df.plot.scatter(x='ts', y='morton', color='grey', ax=ax[1], s=15)
     dff.plot.scatter(x='ts', y='morton', color='blue', ax=ax[1], s=11)
