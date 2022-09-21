@@ -585,13 +585,14 @@ if __name__ == '__main__':
     ################################################################
 
     print("Load_Database...")
-    df = pd.read_csv('../Data/Ausschnitte/opendlv.device.gps.pos.Grp1Data-0.csv', sep=';',
-                      usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed',
-                               'accel_lon', 'accel_trans', 'accel_down'])
+    #df = pd.read_csv('../Data/Ausschnitte/opendlv.device.gps.pos.Grp1Data-0.csv', sep=';',
+    #                  usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed',
+    #                           'accel_lon', 'accel_trans', 'accel_down'])
     # df = pd.read_csv('../Data/Ausschnitte/Hard_Braking/braking_cut_8_brakes.csv', sep=';',
     #                  usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed',
     #                           'accel_lon', 'accel_trans', 'accel_down'])
     # df = pd.read_csv('../Data/Ausschnitte/LaneChange/lanechange_mult.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
+    df = pd.read_csv('../Data/Messfahrten/Lindholmen_2/opendlv.device.gps.pos.Grp1Data-0.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
 
     ################################################################
 
@@ -614,6 +615,7 @@ if __name__ == '__main__':
     #                           min_gap=0, max_gap=0, setup=setup, color='green')
 
     maneuver_obj_list = []
+    maneuver_obj_list.append(linksKurve)
     maneuver_obj_list.append(rechtsKurve)
     maneuver_obj_list.append(linksKurve)
     #geofence = [[-1.5,-4],[-0.25,-0.75]] # rechtskurve, beschleunigung
@@ -645,6 +647,7 @@ if __name__ == '__main__':
     ################################################################
     plot_Values(df, relevant_values_list, driving_maneuver_list)
 
+    print(driving_maneuver_list)
 
     fig, ax = plt.subplots(2, gridspec_kw = {'height_ratios': [1, 7]})
 
