@@ -15,6 +15,8 @@ import multiprocessing
 import functools
 import warnings
 import os
+from shapely.geometry import Point
+from shapely.geometry.polygon import Polygon
 
 class Setup:
     def __init__(self, generate_masks_multithread, offset, faktor_multiply, geofence_resolution, max_accel, bits, dim):
@@ -49,6 +51,8 @@ class DrivingStatus:
         self.color = color
         self.geofence_list = define_geofences(geofence_resolution=self.setup.geofence_resolution, geofence=self.fence)
         self.search_mask = generate_Search_Mask(self.geofence_list, self.setup, store)
+        self.relevant_values_list = []
+        self.maneuver_list = []
 
     def __str__(self):
         return 'DrivingStatus ' + str(self.name) + os.linesep\
@@ -218,10 +222,25 @@ def remove_background_noise(df, setup):
 
 ################################################################
 
-def maskMortonSpace(df, min_M, max_M, duration_min, duration_max, setup):
-    # mit Vektorabfragen
+def maskMortonSpace(dff, min_M, max_M, duration_min, duration_max, setup):
+    # fig, ax = plt.subplots(1)
+    #
+    # df_temp = dff.reset_index()
+    # for i in range(0, len(df_temp)):
+    #     point = Point(int(df_temp.at[i, 'ts']), int(df_temp.at[i, 'morton']))
+    #     polygon = Polygon([(df_temp['ts'].min(), min_M), (df_temp['ts'].min(), max_M), (df_temp['ts'].max(), max_M), (df_temp['ts'].max(), min_M)])
+    #     if polygon.contains(point):
+    #         ax.scatter(point.x, point.y, color = 'red')
+    # #   print("Point:" + str(polygon.contains(point)))
+    #
+    #
+    # df_temp.plot.scatter(x='ts', y='morton', ax=ax, s=5)
+    # ax.plot(*polygon.exterior.xy)
+    #
+    # plt.show()
 
-    df = df[(df['morton'] > min_M) & (df['morton'] < max_M)]
+    # TODO: hier weiter machen
+    df = dff[(dff['morton'] > min_M) & (dff['morton'] < max_M)]
     df = remove_background_noise(df, setup)
     df = df.sort_values(by='ts').reset_index()
     df['diff_to_prev'] = df['ts'].diff()
@@ -520,6 +539,40 @@ def detect_single_maneuver(df, driving_status):
 
 ################################################################
 
+def detect_maneuver_combination(df, maneuver_obj_list):
+
+    for status_obj in maneuver_obj_list:
+        status_obj.relevant_values_list = scene_filter(df, status_obj.search_mask)
+        status_obj.maneuver_list = detect_single_maneuver(df, status_obj)
+        #print("relevant value list", status_obj.relevant_values_list)
+        #print("driving_status_list", status_obj.maneuver_list)
+
+    driving_maneuver_list = []
+
+    status_prev_obj = maneuver_obj_list[0]
+
+    for status_obj in maneuver_obj_list:
+        if not status_obj == status_prev_obj:
+            for status_prev in status_prev_obj.maneuver_list:
+                for status_curr in status_obj.maneuver_list:
+                    gap = status_curr[0] - status_prev[1]
+                    if (gap > status_prev_obj.min_gap) & (gap < status_prev_obj.max_gap):
+                        print("Maneuver detected: ", status_prev_obj.name, "-", status_obj.name
+                        , " :", status_prev[0], "bis", status_curr[1])
+                        driving_maneuver_list.append([[status_prev[0], status_curr[1]]])
+            status_prev_obj = status_obj
+
+    driving_status_list = []
+    relevant_values_list = []
+    for cur_obj in maneuver_obj_list:
+        driving_status_list.append(cur_obj.maneuver_list)
+        relevant_values_list.append(cur_obj.relevant_values_list)
+
+
+    return driving_maneuver_list, driving_status_list, relevant_values_list
+
+################################################################
+
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     warnings.filterwarnings("ignore")
@@ -532,13 +585,13 @@ if __name__ == '__main__':
     ################################################################
 
     print("Load_Database...")
-    # df = pd.read_csv('../Data/Ausschnitte/opendlv.device.gps.pos.Grp1Data-0.csv', sep=';',
-    #                 usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed',
-    #                          'accel_lon', 'accel_trans', 'accel_down'])
+    df = pd.read_csv('../Data/Ausschnitte/opendlv.device.gps.pos.Grp1Data-0.csv', sep=';',
+                      usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed',
+                               'accel_lon', 'accel_trans', 'accel_down'])
     # df = pd.read_csv('../Data/Ausschnitte/Hard_Braking/braking_cut_8_brakes.csv', sep=';',
     #                  usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed',
     #                           'accel_lon', 'accel_trans', 'accel_down'])
-    df = pd.read_csv('../Data/Ausschnitte/LaneChange/lanechange_single.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
+    # df = pd.read_csv('../Data/Ausschnitte/LaneChange/lanechange_mult.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
 
     ################################################################
 
@@ -548,19 +601,21 @@ if __name__ == '__main__':
     df = calc_Morton(df=df, setup=setup)
 
     dff = remove_background_noise(df, setup)
-    dff_temp = maskMortonSpace(df, 2470000, 2580000, 2000000, 5000000, setup)
+    #dff_temp = maskMortonSpace(dff, 2470000, 2580000, 2000000, 5000000, setup)
 
     ################################################################
     # geofence
     fences = [[-1.5, -4], [-0.25, -0.75]]
-    rechtsKurve = DrivingStatus(name='Kurve links', fence=[[-1.5, -4], [-0.25, -0.75]], min_time=500000, max_time=30000000,
-                                min_gap=0, max_gap=0, setup=setup, color='red')
-    linksKurve = DrivingStatus(name='Kurve links', fence=[[-1.5, 0.75], [-0.25, 4]], min_time=500000, max_time=30000000,
-                                min_gap=0, max_gap=0, setup=setup, color='green')
+    rechtsKurve = DrivingStatus(name='Kurve rechts', fence=[[-1.5, -4], [0.75, -0.75]], min_time=500000, max_time=30000000,
+                                min_gap=0, max_gap=2000000, setup=setup, color='red')
+    linksKurve = DrivingStatus(name='Kurve links', fence=[[-1.5, 0.75], [0.75, 4]], min_time=500000, max_time=30000000,
+                                min_gap=0, max_gap=2000000, setup=setup, color='green')
     #startBremsen = DrivingStatus(name='Kurve links', fence=[[3, -4], [10, 4]], min_time=500000, max_time=30000000,
     #                           min_gap=0, max_gap=0, setup=setup, color='green')
 
-
+    maneuver_obj_list = []
+    maneuver_obj_list.append(rechtsKurve)
+    maneuver_obj_list.append(linksKurve)
     #geofence = [[-1.5,-4],[-0.25,-0.75]] # rechtskurve, beschleunigung
     #geofence = [[-1.5, 0.75], [1, 4]]  # linksskurve
 
@@ -578,26 +633,17 @@ if __name__ == '__main__':
 
     ################################################################
 
-    print("Filter Data.")
-    time_filter_start = time.time()
-    relevant_values_list = []
-    relevant_values_list.append(scene_filter(df, rechtsKurve.search_mask))
-    relevant_values_list.append(scene_filter(df, linksKurve.search_mask))
-    #relevant_values_list.append(scene_filter(df, startBremsen.search_mask))
-    time_filter_end = time.time()
-
-    print(relevant_values_list)
-
-    print("Done: Time to identify relevant values in database:", round(time_filter_end-time_filter_start, 10), "s")
-
-    driving_status_list = []
-    driving_status_list.append(detect_single_maneuver(df, rechtsKurve))
-    driving_status_list.append(detect_single_maneuver(df, linksKurve))
     #driving_status_list.append(detect_single_maneuver(df, startBremsen))
-    print(driving_status_list)
+    # print(driving_status_list)
+
+    print("Maneuver Detection.")
+    time_filter_start = time.time()
+    driving_maneuver_list, driving_status_list, relevant_values_list = detect_maneuver_combination(df, maneuver_obj_list)
+    time_filter_end = time.time()
+    print("Done: Time to detect maneuvers", round(time_filter_end-time_filter_start, 10), "s")
 
     ################################################################
-    plot_Values(df, relevant_values_list, driving_status_list)
+    plot_Values(df, relevant_values_list, driving_maneuver_list)
 
 
     fig, ax = plt.subplots(2, gridspec_kw = {'height_ratios': [1, 7]})
