@@ -744,6 +744,30 @@ if __name__ == '__main__':
     maneuver_LC_to_left_left_curve_list.append(abfangen_LC_to_left_linkskurve)
     maneuver_LC_to_left_left_curve = Maneuver('LC_to_left_left_curve', maneuver_LC_to_left_left_curve_list)
 
+    ################################################################
+    # Maneuver definition
+    # LaneChange in left curve road
+
+    rechtsKurve_vor_LC_to_right_linkskurve = DrivingStatus(name='Kurve links', fence=[[-1, -1.5], [1, -0.5]],
+                                                         min_time=2000000,
+                                                         max_time=300000000,
+                                                         min_gap=-200000, max_gap=800000, setup=setup, color='red')
+    ausscheren_LC_to_right_rechtskurve = DrivingStatus(name='Ausscheren links', fence=[[-1, -4], [1, -1.5]],
+                                                     min_time=100000,
+                                                     max_time=5000000,
+                                                     min_gap=-200000, max_gap=800000, setup=setup, color='red')
+    abfangen_LC_to_right_rechtskurve = DrivingStatus(name='Abfangen rechts', fence=[[-1, -0.5], [1, 1.5]],
+                                                   min_time=100000,
+                                                   max_time=5000000,
+                                                   min_gap=-200000, max_gap=800000, setup=setup, color='green')
+    # startBremsen = DrivingStatus(name='Kurve links', fence=[[3, -4], [10, 4]], min_time=500000, max_time=30000000,
+    #                           min_gap=0, max_gap=0, setup=setup, color='green')
+
+    maneuver_LC_to_right_right_curve_list = []
+    maneuver_LC_to_right_right_curve_list.append(rechtsKurve_vor_LC_to_right_linkskurve)
+    maneuver_LC_to_right_right_curve_list.append(ausscheren_LC_to_right_rechtskurve)
+    maneuver_LC_to_right_right_curve_list.append(abfangen_LC_to_right_rechtskurve)
+    maneuver_LC_to_right_right_curve_list = Maneuver('LC_to_right_right_curve', maneuver_LC_to_right_right_curve_list)
 
     #print("Define Search Mask.")
     #search_mask = generate_Search_Mask(geofence_list, setup, store)
