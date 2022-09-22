@@ -557,17 +557,24 @@ def detect_maneuver_combination(df, maneuver_obj_list):
 
     cnt_obj = len(maneuver_obj_list)
 
-    for status_obj in maneuver_obj_list:
-        if not status_obj == status_prev_obj:
-            for status_prev in status_prev_obj.maneuver_list:
-                for status_curr in status_obj.maneuver_list:
-                    gap = status_curr[0] - status_prev[1]
-                    if (gap > status_prev_obj.min_gap) & (gap < status_prev_obj.max_gap):
-                        print("Maneuver detected: ", status_prev_obj.name, "-", status_obj.name
-                        , " :", status_prev[0], "bis", status_curr[1])
-                        driving_maneuver_list.append([[status_prev[0], status_curr[1]]])
-            status_prev_obj = status_obj
+    # for status_obj in maneuver_obj_list:
+    #     if not status_obj == status_prev_obj:
+    #         for status_prev in status_prev_obj.maneuver_list:
+    #             for status_curr in status_obj.maneuver_list:
+    #                 gap = status_curr[0] - status_prev[1]
+    #                 if (gap > status_prev_obj.min_gap) & (gap < status_prev_obj.max_gap):
+    #                     print("Maneuver detected: ", status_prev_obj.name, "-", status_obj.name
+    #                     , " :", status_prev[0], "bis", status_curr[1])
+    #                     driving_maneuver_list.append([[status_prev[0], status_curr[1]]])
+    #         status_prev_obj = status_obj
 
+
+    for i in range(0,len(maneuver_obj_list[0].maneuver_list)-1):
+        time_end, end = recursive_Maneuver_Search(0,i,maneuver_obj_list)
+        if end == True:
+            time_start = maneuver_obj_list[0].maneuver_list[i][0]
+            print("Maneuver detected from", time_start, " to ", time_end, "Gap:", time_end-time_start)
+            driving_maneuver_list.append([[time_start, time_end]])
 
 
     driving_status_list = []
@@ -575,6 +582,7 @@ def detect_maneuver_combination(df, maneuver_obj_list):
     for cur_obj in maneuver_obj_list:
         driving_status_list.append(cur_obj.maneuver_list)
         relevant_values_list.append(cur_obj.relevant_values_list)
+
 
     # status_prev_obj = maneuver_obj_list[0]
     # for status_cur_obj in maneuver_obj_list:
@@ -587,7 +595,36 @@ def detect_maneuver_combination(df, maneuver_obj_list):
 
 def recursive_Maneuver_Search(man_idx, status_idx, maneuver_obj_list):
 
-    return True
+    if man_idx >= len(maneuver_obj_list):
+        return 0, False
+
+    # if not (status_idx < len(cur_man_obj.maneuver_list)):
+    #    return 0, False
+
+    cur_man_obj = maneuver_obj_list[man_idx]
+    next_man_obj = maneuver_obj_list[man_idx + 1]
+
+    cur_status = cur_man_obj.maneuver_list[status_idx]
+
+    for next_status in next_man_obj.maneuver_list:
+
+        gap = next_status[0] - cur_status[1]
+
+        if gap > cur_man_obj.max_gap:
+            break
+
+        if (gap > cur_man_obj.min_gap) & (gap < cur_man_obj.max_gap):
+
+            if man_idx == (len(maneuver_obj_list) - 2):
+                return next_status[1], True
+
+            else:
+                next_status_idx = next_man_obj.maneuver_list.index(next_status)
+
+                return recursive_Maneuver_Search(man_idx + 1, next_status_idx, maneuver_obj_list)
+
+    return 0, False
+
 
 ################################################################
 
@@ -609,11 +646,11 @@ if __name__ == '__main__':
     # df = pd.read_csv('../Data/Ausschnitte/Hard_Braking/braking_cut_8_brakes.csv', sep=';',
     #                  usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed',
     #                           'accel_lon', 'accel_trans', 'accel_down'])
-    # df = pd.read_csv('../Data/Ausschnitte/LaneChange/lanechange_20220921_all.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
+    #df = pd.read_csv('../Data/Ausschnitte/LaneChange/lanechange_20220921_fast_right.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
     #df = pd.read_csv('../Data/Ausschnitte/LaneChange/motorway.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
-    df = pd.read_csv('../Data/Ausschnitte/Noise/noise_complete_no_curve.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
+    #df = pd.read_csv('../Data/Ausschnitte/Noise/noise_complete_no_curve.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
     # df = pd.read_csv('../Data/Messfahrten/Lindholmen_2/opendlv.device.gps.pos.Grp1Data-0.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
-    #df = pd.read_csv('../Data/Messfahrten/20220921/CSV/Motorway_Roundabout/opendlv.device.gps.pos.Grp1Data-0.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
+    df = pd.read_csv('../Data/Messfahrten/20220921/CSV/Motorway_Roundabout/opendlv.device.gps.pos.Grp1Data-0.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
 
     #label = pd.read_csv('../Data/Messfahrten/20220921/CSV/Testgelaende/Testgelaende_noise_LC/opendlv.system.LogMessage-999.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'description'])
     label = pd.read_csv('../Data/Messfahrten/20220921/CSV/Motorway_Roundabout/opendlv.system.LogMessage-999.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds','description'])
@@ -645,9 +682,10 @@ if __name__ == '__main__':
     #                           min_gap=0, max_gap=0, setup=setup, color='green')
 
     maneuver_obj_list = []
+    #maneuver_obj_list.append(linksKurve)
+    maneuver_obj_list.append(rechtsKurve)
     maneuver_obj_list.append(linksKurve)
     maneuver_obj_list.append(rechtsKurve)
-    #maneuver_obj_list.append(linksKurve)
     #geofence = [[-1.5,-4],[-0.25,-0.75]] # rechtskurve, beschleunigung
     #geofence = [[-1.5, 0.75], [1, 4]]  # linksskurve
 
