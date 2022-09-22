@@ -102,7 +102,7 @@ def plot_Values(df, df_relevant_values, driving_status_list, label):
         color = 'red'
         for status in driving_status_temp:
             ax[1].add_patch(
-                Rectangle((status[0], -4), status[1] - status[0], 8, fill=False, color='red', lw=1.5))
+                Rectangle((status[0], -2), status[1] - status[0], 4, fill=False, color='red', lw=1.5))
 
     df.plot(kind='scatter', x='accel_lon', y='accel_trans', color=df['ts'], ax=ax[2])
     ax[2].set_xlim(-10, 10)
@@ -128,15 +128,15 @@ def plot_Values(df, df_relevant_values, driving_status_list, label):
         ax[1].annotate(row['label'], (row['ts'], 2.5), rotation=60)
 
     # add rote Punkte
-    #for relevant_temp in df_relevant_values:
+    for relevant_temp in df_relevant_values:
         # zweiter Gtraph
         #relevant_temp.plot.scatter(x='ts', y='accel_lon', color='red', ax=ax[1])
         #relevant_temp.plot.scatter(x='ts', y='accel_trans', color='red', ax=ax[1])
         # dritter Graph
-        #relevant_temp.plot(kind='scatter', x='accel_lon', y='accel_trans', color='red', ax=ax[2])
+        relevant_temp.plot(kind='scatter', x='accel_lon', y='accel_trans', color='red', ax=ax[2])
         # vierter Graph
         # morton statisch
-        #ax[3].hist(relevant_temp['morton'], bins=bins, range=(min, max), color='red')
+        ax[3].hist(relevant_temp['morton'], bins=bins, range=(min, max), color='red')
         # morton zeitabhängig
         #relevant_temp.plot.scatter(x='ts', y='morton', color='red', ax=ax[3])
 
@@ -156,7 +156,7 @@ def filter_Values(df, geofence, fence_x, fence_y):
     dff['diff_to_prev'] = dff['ts'].diff()
 
 
-    cnt_maneuver = len(dff[dff['diff_to_prev'] > 5000000].index) + 1
+    cnt_maneuver = len(dff[dff['diff_to_prev'] > 80000].index) + 1
 
     date = dff['ts'].min() / 1000000
     dt = datetime.datetime.fromtimestamp(date, datetime.timezone(datetime.timedelta(hours=1)))
@@ -176,7 +176,7 @@ def filter_Morton(df, range_min, range_max):
     dff = dff.sort_values(by='ts').reset_index()
     dff['diff_to_prev'] = dff['ts'].diff()
 
-    cnt_maneuver = len(dff[dff['diff_to_prev'] > 5000000].index) + 1
+    cnt_maneuver = len(dff[dff['diff_to_prev'] > 80000].index) + 1
 
     date = dff['ts'].min() / 1000000
     dt = datetime.datetime.fromtimestamp(date, datetime.timezone(datetime.timedelta(hours=1)))
@@ -272,7 +272,7 @@ def maskMortonSpace(dff, min_M, max_M, duration_min, duration_max, setup):
         start_ts = df['ts'][0]
         end_ts = 0
 
-        maneuver_start_list = df[df['diff_to_prev'] > 120000].index #ein sample darf fehlen
+        maneuver_start_list = df[df['diff_to_prev'] > 80000].index #ein sample darf fehlen
         if not len(maneuver_start_list) > 0:
             maneuver_start_list.append(df.index[-1])
 
@@ -570,9 +570,9 @@ def detect_maneuver_combination(df, maneuver_obj, min_time_between_same_driving_
 
     driving_maneuver_list = []
 
-    status_prev_obj = maneuver_obj_list[0]
+    status_prev_obj = maneuver_obj.drivingStatus_list[0]
 
-    cnt_obj = len(maneuver_obj_list)
+    cnt_obj = len(maneuver_obj.drivingStatus_list)
 
     # for status_obj in maneuver_obj_list:
     #     if not status_obj == status_prev_obj:
@@ -585,20 +585,23 @@ def detect_maneuver_combination(df, maneuver_obj, min_time_between_same_driving_
     #                     driving_maneuver_list.append([[status_prev[0], status_curr[1]]])
     #         status_prev_obj = status_obj
 
+    relevant_values_list = []
 
-    for i in range(0,len(maneuver_obj_list[0].maneuver_list)-1):
-        time_end, end = recursive_Maneuver_Search(0,i,maneuver_obj_list)
+    for i in range(0,len(maneuver_obj.drivingStatus_list[0].maneuver_list)-1):
+        time_end, end = recursive_Maneuver_Search(0,i,maneuver_obj.drivingStatus_list)
         if end == True:
-            time_start = maneuver_obj_list[0].maneuver_list[i][0]
-            print(maneuver_obj.name, "detected from", time_start, "to", time_end, "; Duration:", time_end-time_start)
+            time_start = maneuver_obj.drivingStatus_list[0].maneuver_list[i][0]
+            print(maneuver_obj.name, "detected from", time_start, "to", time_end, "; Duration:", time_end-time_start/1000000, "s")
             driving_maneuver_list.append([[time_start, time_end]])
+            relevant_values_list.append(df[(df['ts'] > time_start) & (df['ts'] < time_end)])
 
+    #driving_maneuver_list = [maneuver_obj.drivingStatus_list[0].maneuver_list]
 
     driving_status_list = []
-    relevant_values_list = []
-    for cur_obj in maneuver_obj_list:
+
+    for cur_obj in maneuver_obj.drivingStatus_list:
         driving_status_list.append(cur_obj.maneuver_list)
-        relevant_values_list.append(cur_obj.relevant_values_list)
+        #relevant_values_list.append(cur_obj.relevant_values_list)
 
 
     # status_prev_obj = maneuver_obj_list[0]
@@ -619,6 +622,11 @@ def recursive_Maneuver_Search(man_idx, status_idx, maneuver_obj_list):
     #    return 0, False
 
     cur_man_obj = maneuver_obj_list[man_idx]
+
+    # TODO: maneuverobj lists mit nur einem element
+    if len(maneuver_obj_list) == 1:
+        return cur_man_obj.maneuver_list[status_idx], True
+
     next_man_obj = maneuver_obj_list[man_idx + 1]
 
     cur_status = cur_man_obj.maneuver_list[status_idx]
@@ -652,7 +660,8 @@ if __name__ == '__main__':
     print("Välkommen!")
 
     setup = Setup(True, 10, 100, 0.25, 10, 18, 2)
-    min_time_between_same_driving_status = 500000
+    min_time_between_same_driving_status = 160000
+
     store = pd.HDFStore("searchMaskStorage.h5")
 
     ################################################################
@@ -696,21 +705,44 @@ if __name__ == '__main__':
     #dff_temp = maskMortonSpace(dff, 2470000, 2580000, 2000000, 5000000, setup)
 
     ################################################################
-    # geofence
-    fences = [[-1.5, -4], [-0.25, -0.75]]
-    rechtsKurve = DrivingStatus(name='Kurve rechts', fence=[[-1.5, -5], [0.75, -0.75]], min_time=500000, max_time=30000000,
+    # Maneuver definition
+    # LaneChange on straight road
+    rechtsKurve_LC_gerade = DrivingStatus(name='Kurve rechts', fence=[[-1.5, -5], [0.75, -0.75]], min_time=500000, max_time=30000000,
                                 min_gap=0, max_gap=2000000, setup=setup, color='red')
-    linksKurve = DrivingStatus(name='Kurve links', fence=[[-1.5, 0.75], [0.75, 5]], min_time=500000, max_time=30000000,
+    linksKurve_LC_gerade = DrivingStatus(name='Kurve links', fence=[[-1.5, 0.75], [0.75, 5]], min_time=500000, max_time=30000000,
                                 min_gap=0, max_gap=2000000, setup=setup, color='green')
+
+    maneuver_LC_to_left_straight_list = []
+    maneuver_LC_to_left_straight_list.append(linksKurve_LC_gerade)
+    maneuver_LC_to_left_straight_list.append(rechtsKurve_LC_gerade)
+    maneuver_LC_to_left_straight = Maneuver('LC_to_left_straight', maneuver_LC_to_left_straight_list)
+
+    maneuver_LC_to_right_straight_list = []
+    maneuver_LC_to_right_straight_list.append(rechtsKurve_LC_gerade)
+    maneuver_LC_to_right_straight_list.append(linksKurve_LC_gerade)
+    maneuver_LC_to_right_straight = Maneuver('LC_to_right_straight', maneuver_LC_to_right_straight_list)
+
+    ################################################################
+    # Maneuver definition
+    # LaneChange in left curve road
+
+    linksKurve_vor_LC_to_left_linkskurve = DrivingStatus(name='Kurve links', fence=[[-1, 0.5], [1, 1.5]], min_time=2000000,
+                                          max_time=300000000,
+                                          min_gap=-200000, max_gap=800000, setup=setup, color='red')
+    ausscheren_LC_to_left_linkskurve = DrivingStatus(name='Ausscheren links', fence=[[-1, 1.5], [1, 4]], min_time=100000,
+                                          max_time=5000000,
+                                          min_gap=-200000, max_gap=800000, setup=setup, color='red')
+    abfangen_LC_to_left_linkskurve = DrivingStatus(name='Abfangen rechts', fence=[[-1, -1.5], [1, 0.5]], min_time=100000,
+                                         max_time=5000000,
+                                         min_gap=-200000, max_gap=800000, setup=setup, color='green')
     #startBremsen = DrivingStatus(name='Kurve links', fence=[[3, -4], [10, 4]], min_time=500000, max_time=30000000,
     #                           min_gap=0, max_gap=0, setup=setup, color='green')
 
-    maneuver_obj_list = []
-    maneuver_obj_list.append(rechtsKurve)
-    maneuver_obj_list.append(linksKurve)
-    maneuver_obj_list.append(rechtsKurve)
-
-    kreisel_maneuver = Maneuver('Roundabout' , maneuver_obj_list)
+    maneuver_LC_to_left_left_curve_list = []
+    maneuver_LC_to_left_left_curve_list.append(linksKurve_vor_LC_to_left_linkskurve)
+    maneuver_LC_to_left_left_curve_list.append(ausscheren_LC_to_left_linkskurve)
+    maneuver_LC_to_left_left_curve_list.append(abfangen_LC_to_left_linkskurve)
+    maneuver_LC_to_left_left_curve = Maneuver('LC_to_left_left_curve', maneuver_LC_to_left_left_curve_list)
 
 
     #print("Define Search Mask.")
@@ -723,7 +755,7 @@ if __name__ == '__main__':
 
     print("Maneuver Detection.")
     time_filter_start = time.time()
-    driving_maneuver_list, driving_status_list, relevant_values_list = detect_maneuver_combination(df, kreisel_maneuver, min_time_between_same_driving_status)
+    driving_maneuver_list, driving_status_list, relevant_values_list = detect_maneuver_combination(df, maneuver_LC_to_left_left_curve, min_time_between_same_driving_status)
     time_filter_end = time.time()
     print("Done: Time to detect maneuvers", round(time_filter_end-time_filter_start, 10), "s")
 
@@ -747,8 +779,8 @@ if __name__ == '__main__':
 
     df.plot.scatter(x='ts', y='morton', color='blue', ax=ax[1], s=15)
     #dff.plot.scatter(x='ts', y='morton', color='blue', ax=ax[1], s=11)
-    #for relevant in relevant_values_list:
-        #relevant.plot.scatter(x='ts', y='morton', color='red', ax=ax[1], s=5)
+    for relevant in relevant_values_list:
+        relevant.plot.scatter(x='ts', y='morton', color='red', ax=ax[1], s=5)
 
     plt.show()
 
