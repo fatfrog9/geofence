@@ -674,10 +674,10 @@ if __name__ == '__main__':
     #                  usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed',
     #                           'accel_lon', 'accel_trans', 'accel_down'])
     #df = pd.read_csv('../Data/Ausschnitte/LaneChange/lanechange_20220921_fast_right.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
-    df = pd.read_csv('../Data/Ausschnitte/LaneChange/LC_in_Kurve.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
+    #df = pd.read_csv('../Data/Ausschnitte/LaneChange/LC_in_Kurve.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
     #df = pd.read_csv('../Data/Ausschnitte/Noise/noise_complete_no_curve.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
     # df = pd.read_csv('../Data/Messfahrten/Lindholmen_2/opendlv.device.gps.pos.Grp1Data-0.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
-    #df = pd.read_csv('../Data/Messfahrten/20220921/CSV/Motorway_Roundabout/opendlv.device.gps.pos.Grp1Data-0.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
+    df = pd.read_csv('../Data/Messfahrten/20220921/CSV/Motorway_Roundabout/opendlv.device.gps.pos.Grp1Data-0.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
     #df = pd.read_csv('../Data/Ausschnitte/Kreisfahrt/Kreis_rechts_im_Uhrzeigen_const_slow.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
     #df = pd.read_csv('../Data/Ausschnitte/Kreisfahrt/Kreis_rechts_im_Uhrzeigen.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
     #df = pd.read_csv('../Data/Ausschnitte/S_Kurve/S_Kurve_aus_rechtsskurve_kommend.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
@@ -767,7 +767,7 @@ if __name__ == '__main__':
     maneuver_LC_to_right_right_curve_list.append(rechtsKurve_vor_LC_to_right_linkskurve)
     maneuver_LC_to_right_right_curve_list.append(ausscheren_LC_to_right_rechtskurve)
     maneuver_LC_to_right_right_curve_list.append(abfangen_LC_to_right_rechtskurve)
-    maneuver_LC_to_right_right_curve_list = Maneuver('LC_to_right_right_curve', maneuver_LC_to_right_right_curve_list)
+    maneuver_LC_to_right_right_curve = Maneuver('LC_to_right_right_curve', maneuver_LC_to_right_right_curve_list)
 
     #print("Define Search Mask.")
     #search_mask = generate_Search_Mask(geofence_list, setup, store)
