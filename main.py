@@ -2,6 +2,8 @@
 
 # Press Umschalt+F10 to execute it or replace it with your code.
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
+import math
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -18,6 +20,7 @@ import os
 from shapely.geometry import Point
 from shapely.geometry.polygon import Polygon
 import base64
+import math
 
 class Setup:
     def __init__(self, generate_masks_multithread, offset, faktor_multiply, geofence_resolution, max_accel, bits, dim):
@@ -228,16 +231,23 @@ def generate_ts(df):
 
 ################################################################
 
-def remove_background_noise(df, setup):
+def remove_background_noise(df, setup, store, geofence):
 
     # vierte Reihe von unten
-    df = df.drop(df[(df.morton > 3140000) & (df.morton < 3170000)].index)
+    #df = df.drop(df[(df.morton > 3140000) & (df.morton < 3170000)].index)
     # dritte Reihe von unten
-    df = df.drop(df[(df.morton > 2410000) & (df.morton < 2460000)].index)
+    #df = df.drop(df[(df.morton > 2410000) & (df.morton < 2460000)].index)
     # zweite Reihe von unten
-    df = df.drop(df[(df.morton > 1720000) & (df.morton < 1770000)].index)
+    #df = df.drop(df[(df.morton > 1720000) & (df.morton < 1770000)].index)
     # unterste Zeile
-    df = df.drop(df[(df.morton > 1025000) & (df.morton < 1070000)].index)
+    #df = df.drop(df[(df.morton > 1025000) & (df.morton < 1070000)].index)
+
+    #geofence_list = define_geofences(setup.geofence_resolution, [[-0.3, -0.25], [0.4, 0.25]])
+    geofence_list = define_geofences(setup.geofence_resolution, geofence)
+
+    search_mask = generate_Search_Mask(geofence_list, setup, store)
+
+    df = scene_filter(df, search_mask)
 
     return df
 
@@ -260,7 +270,6 @@ def maskMortonSpace(dff, min_M, max_M, duration_min, duration_max, setup):
     #
     # plt.show()
 
-    # TODO: hier weiter machen
     df = dff[(dff['morton'] > min_M) & (dff['morton'] < max_M)]
     df = remove_background_noise(df, setup)
     df = df.sort_values(by='ts').reset_index()
@@ -475,8 +484,16 @@ def define_geofences(geofence_resolution, geofence):
     if not (geofence[0][0] < geofence[1][0]) & (geofence[0][1] < geofence[1][1]):
         sys.exit("Geofence is not correct, expect: A[0][0] < B[1][0] & A[0][1] < B[1][1]")
 
-    if not ((geofence[0][0] % geofence_resolution) == 0) & ((geofence[0][1] % geofence_resolution) == 0) & ((geofence[1][0] % geofence_resolution) == 0) & ((geofence[1][1] % geofence_resolution) == 0):
-        sys.exit("GeofenceResolution is not common multiple of geofence values.")
+
+    if not math.isclose((geofence[0][0] % geofence_resolution), 0.0, abs_tol=0.001) &\
+            math.isclose((geofence[0][1] % geofence_resolution), 0.0, abs_tol=0.001) &\
+            math.isclose((geofence[1][0] % geofence_resolution), 0.0, abs_tol=0.001) &\
+            math.isclose((geofence[1][1] % geofence_resolution), 0.0, abs_tol=0.001):
+        sys.exit("GeofenceResolution is not common multiple of geofence values." + os.linesep +
+                 str(geofence[0][0]) +": " + str((geofence[0][0] % geofence_resolution)) + os.linesep +
+                 str(geofence[0][1]) +": " + str((geofence[0][1] % geofence_resolution)) + os.linesep +
+                 str(geofence[1][0]) + ": " + str((geofence[1][0] % geofence_resolution)) + os.linesep +
+                 str(geofence[1][1]) +": " + str((geofence[1][1] % geofence_resolution)))
 
     geofence_list = []
     for i in np.arange(geofence[0][0],geofence[1][0],geofence_resolution): # accel_long
@@ -659,7 +676,7 @@ if __name__ == '__main__':
 
     print("Välkommen!")
 
-    setup = Setup(True, 10, 100, 0.25, 10, 18, 2)
+    setup = Setup(True, 10, 100, 0.125, 10, 18, 2) # resolution: 0.0625
     min_time_between_same_driving_status = 160000
 
     store = pd.HDFStore("searchMaskStorage.h5")
@@ -675,18 +692,20 @@ if __name__ == '__main__':
     #                           'accel_lon', 'accel_trans', 'accel_down'])
     #df = pd.read_csv('../Data/Ausschnitte/LaneChange/lanechange_20220921_fast_right.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
     #df = pd.read_csv('../Data/Ausschnitte/LaneChange/LC_in_Kurve.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
-    #df = pd.read_csv('../Data/Ausschnitte/Noise/noise_complete_no_curve.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
+    #df = pd.read_csv('../Data/Ausschnitte/Noise/noise_complete.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
     # df = pd.read_csv('../Data/Messfahrten/Lindholmen_2/opendlv.device.gps.pos.Grp1Data-0.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
-    df = pd.read_csv('../Data/Messfahrten/20220921/CSV/Motorway_Roundabout/opendlv.device.gps.pos.Grp1Data-0.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
+    #df = pd.read_csv('../Data/Messfahrten/20220921/CSV/Motorway_Roundabout/opendlv.device.gps.pos.Grp1Data-0.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
     #df = pd.read_csv('../Data/Ausschnitte/Kreisfahrt/Kreis_rechts_im_Uhrzeigen_const_slow.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
-    #df = pd.read_csv('../Data/Ausschnitte/Kreisfahrt/Kreis_rechts_im_Uhrzeigen.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
+    #df = pd.read_csv('../Data/Ausschnitte/Kreisfahrt/Kreis_links_gegen_Uhrzeigen.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
     #df = pd.read_csv('../Data/Ausschnitte/S_Kurve/S_Kurve_aus_rechtsskurve_kommend.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
 
+    #noise
+    df = pd.read_csv('../Data/Ausschnitte/Noise/noise_straight_complete.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
 
     #label = pd.read_csv('../Data/Messfahrten/20220921/CSV/Testgelaende/Testgelaende_noise_LC/opendlv.system.LogMessage-999.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'description'])
-    #label = pd.read_csv('../Data/Auschnitte/Kreisfahrt/Kreis_rechts_im_Uhrzeigen_const_fast.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'description'])
+    label = pd.read_csv('../Data/Messfahrten/20220921/CSV/Testgelaende/Kreisfahrt/opendlv.system.LogMessage-999.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'description'])
 
-    label = pd.read_csv('../Data/Messfahrten/20220921/CSV/Motorway_Roundabout/opendlv.system.LogMessage-999.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds','description'])
+    #label = pd.read_csv('../Data/Messfahrten/20220921/CSV/Motorway_Roundabout/opendlv.system.LogMessage-999.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds','description'])
     label = generate_ts(label)
     label['label'] = label['description'].apply(lambda b: str(base64.b64decode(b)))
     #label = label[label['label'].str.contains("round") == True]
@@ -701,7 +720,7 @@ if __name__ == '__main__':
 
     df = calc_Morton(df=df, setup=setup)
 
-    #dff = remove_background_noise(df, setup)
+    #df = remove_background_noise(df, setup, store, [[-0.25, -0.25], [0.375, 0.25]])
     #dff_temp = maskMortonSpace(dff, 2470000, 2580000, 2000000, 5000000, setup)
 
     ################################################################
@@ -773,6 +792,7 @@ if __name__ == '__main__':
     #search_mask = generate_Search_Mask(geofence_list, setup, store)
 
     ################################################################
+
 
     #driving_status_list.append(detect_single_maneuver(df, startBremsen))
     # print(driving_status_list)
