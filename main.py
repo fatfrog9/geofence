@@ -86,17 +86,17 @@ class Maneuver:
 def plot_Values(df, df_relevant_values, driving_status_list, label):
     fig, ax = plt.subplots(4, gridspec_kw={'height_ratios': [3, 3, 3, 1]})
 
-    df.plot(x='lon', y='lat', ax=ax[0], color = 'blue')
-    # dff.plot.scatter(x='lon', y='lat', ax=ax[0], color = 'red')
-
-    cnt = 0
-    for driving_status_temp in driving_status_list:
-        color = 'red'
-        for status in driving_status_temp:
-            maneuver_df_temp = df.loc[(df.ts > status[0]) & (df.ts < status[1])]
-            maneuver_df_temp.plot.scatter(x='lon', y='lat', ax=ax[0], color=color)
-            # ax[0].annotate("Maneuver: " + str(cnt), maneuver_df_temp.iloc[-1]['lon'], maneuver_df_temp.iloc[-1]['lat'])
-            cnt += 1
+    # df.plot(x='lon', y='lat', ax=ax[0], color = 'blue')
+    # # dff.plot.scatter(x='lon', y='lat', ax=ax[0], color = 'red')
+    #
+    # cnt = 0
+    # for driving_status_temp in driving_status_list:
+    #     color = 'red'
+    #     for status in driving_status_temp:
+    #         maneuver_df_temp = df.loc[(df.ts > status[0]) & (df.ts < status[1])]
+    #         maneuver_df_temp.plot.scatter(x='lon', y='lat', ax=ax[0], color=color)
+    #         # ax[0].annotate("Maneuver: " + str(cnt), maneuver_df_temp.iloc[-1]['lon'], maneuver_df_temp.iloc[-1]['lat'])
+    #         cnt += 1
 
     df.plot(x='ts', y=['accel_lon', 'accel_trans'], ax=ax[1])
     # Kästen mit Maneuvern plotten
@@ -105,7 +105,7 @@ def plot_Values(df, df_relevant_values, driving_status_list, label):
         color = 'red'
         for status in driving_status_temp:
             ax[1].add_patch(
-                Rectangle((status[0], -2), status[1] - status[0], 4, fill=False, color='red', lw=1.5))
+                Rectangle((status[0], -3), status[1] - status[0], 6, fill=False, color='red', lw=1.5))
 
     df.plot(kind='scatter', x='accel_lon', y='accel_trans', color=df['ts'], ax=ax[2])
     ax[2].set_xlim(-10, 10)
@@ -699,16 +699,27 @@ if __name__ == '__main__':
     #df = pd.read_csv('../Data/Ausschnitte/Kreisfahrt/Kreis_links_gegen_Uhrzeigen.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
     #df = pd.read_csv('../Data/Ausschnitte/S_Kurve/S_Kurve_aus_rechtsskurve_kommend.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
 
+    # Datacollection 2022 09 23
+    # df = pd.read_csv('../Data/Messfahrten/20220923/CSV/20220923_to_Boras/opendlv.device.gps.pos.Grp1Data-0_motorway_to_boras.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
+    # label = pd.read_csv('../Data/Messfahrten/20220923/CSV/20220923_to_Boras/opendlv.system.LogMessage-999.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'description'])
+    df = pd.read_csv('../Data/Messfahrten/20220923/CSV/20220923_back_to_gothenburg/opendlv.device.gps.pos.Grp1Data-0.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
+    label = pd.read_csv('../Data/Messfahrten/20220923/CSV/20220923_back_to_gothenburg/opendlv.system.LogMessage-999.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'description'])
+
     #noise
-    df = pd.read_csv('../Data/Ausschnitte/Noise/noise_straight_complete.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
+    #df = pd.read_csv('../Data/Ausschnitte/Noise/noise_straight_complete.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
+
+    #Voyager
+    df = pd.read_csv('C:/Users/Lukas Birkemeyer/Documents/Confidential_Promotion/Voyager/17T114115Z/opendlv.proxy.AccelerationReading-2.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'accelerationX', 'accelerationY', 'accelerationZ'])
+    df.rename(columns={'accelerationX': 'accel_lon', 'accelerationY': 'accel_trans', 'accelerationZ': 'accel_down'}, inplace=True)
+
 
     #label = pd.read_csv('../Data/Messfahrten/20220921/CSV/Testgelaende/Testgelaende_noise_LC/opendlv.system.LogMessage-999.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'description'])
-    label = pd.read_csv('../Data/Messfahrten/20220921/CSV/Testgelaende/Kreisfahrt/opendlv.system.LogMessage-999.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'description'])
+    #label = pd.read_csv('../Data/Messfahrten/20220921/CSV/Testgelaende/Kreisfahrt/opendlv.system.LogMessage-999.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'description'])
 
     #label = pd.read_csv('../Data/Messfahrten/20220921/CSV/Motorway_Roundabout/opendlv.system.LogMessage-999.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds','description'])
     label = generate_ts(label)
     label['label'] = label['description'].apply(lambda b: str(base64.b64decode(b)))
-    #label = label[label['label'].str.contains("round") == True]
+    label = label[label['label'].str.contains("right") == True]
     label = label.drop(columns='description')
 
     print("The length of data is:", len(df))
@@ -726,10 +737,10 @@ if __name__ == '__main__':
     ################################################################
     # Maneuver definition
     # LaneChange on straight road
-    rechtsKurve_LC_gerade = DrivingStatus(name='Kurve rechts', fence=[[-1.5, -5], [0.75, -0.75]], min_time=500000, max_time=30000000,
-                                min_gap=0, max_gap=2000000, setup=setup, color='red')
-    linksKurve_LC_gerade = DrivingStatus(name='Kurve links', fence=[[-1.5, 0.75], [0.75, 5]], min_time=500000, max_time=30000000,
-                                min_gap=0, max_gap=2000000, setup=setup, color='green')
+    rechtsKurve_LC_gerade = DrivingStatus(name='Kurve rechts', fence=[[-1.5, -5], [0.75, -0.75]], min_time=100000, max_time=30000000,
+                                min_gap=-200000, max_gap=2000000, setup=setup, color='red')
+    linksKurve_LC_gerade = DrivingStatus(name='Kurve links', fence=[[-1.5, 0.75], [0.75, 5]], min_time=100000, max_time=30000000,
+                                min_gap=-200000, max_gap=2000000, setup=setup, color='red')
 
     maneuver_LC_to_left_straight_list = []
     maneuver_LC_to_left_straight_list.append(linksKurve_LC_gerade)
@@ -753,7 +764,7 @@ if __name__ == '__main__':
                                           min_gap=-200000, max_gap=800000, setup=setup, color='red')
     abfangen_LC_to_left_linkskurve = DrivingStatus(name='Abfangen rechts', fence=[[-1, -1.5], [1, 0.5]], min_time=100000,
                                          max_time=5000000,
-                                         min_gap=-200000, max_gap=800000, setup=setup, color='green')
+                                         min_gap=-200000, max_gap=800000, setup=setup, color='red')
     #startBremsen = DrivingStatus(name='Kurve links', fence=[[3, -4], [10, 4]], min_time=500000, max_time=30000000,
     #                           min_gap=0, max_gap=0, setup=setup, color='green')
 
@@ -788,6 +799,21 @@ if __name__ == '__main__':
     maneuver_LC_to_right_right_curve_list.append(abfangen_LC_to_right_rechtskurve)
     maneuver_LC_to_right_right_curve = Maneuver('LC_to_right_right_curve', maneuver_LC_to_right_right_curve_list)
 
+    ################################################################
+    # Maneuver definition
+    # AEB
+    Stop_1 = DrivingStatus(name='AEB1', fence=[[4.5, -4], [10, 4]], min_time=100000,
+                                          max_time=30000000,
+                                          min_gap=-30000000, max_gap=2000000, setup=setup, color='red')
+    Stop_2 = DrivingStatus(name='AEB2', fence=[[4.5, -4], [10, 4]], min_time=100000,
+                                         max_time=30000000,
+                                         min_gap=-30000000, max_gap=2000000, setup=setup, color='red')
+
+    maneuver_AEB_list = []
+    maneuver_AEB_list.append(Stop_1)
+    maneuver_AEB_list.append(Stop_2)
+    maneuver_AEB = Maneuver('AEB', maneuver_AEB_list)
+
     #print("Define Search Mask.")
     #search_mask = generate_Search_Mask(geofence_list, setup, store)
 
@@ -799,7 +825,7 @@ if __name__ == '__main__':
 
     print("Maneuver Detection.")
     time_filter_start = time.time()
-    driving_maneuver_list, driving_status_list, relevant_values_list = detect_maneuver_combination(df, maneuver_LC_to_left_left_curve, min_time_between_same_driving_status)
+    driving_maneuver_list, driving_status_list, relevant_values_list = detect_maneuver_combination(df, maneuver_AEB, min_time_between_same_driving_status)
     time_filter_end = time.time()
     print("Done: Time to detect maneuvers", round(time_filter_end-time_filter_start, 10), "s")
 
