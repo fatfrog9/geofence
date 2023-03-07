@@ -26,12 +26,12 @@ from tqdm import tqdm
 class Setup:
     def __init__(self, generate_masks_multithread, offset, faktor_multiply, geofence_resolution, max_accel, bits, dim):
         self.generate_masks_multithread = generate_masks_multithread
-        self.offset = offset
-        self.faktor_multiply = faktor_multiply
-        self.geofence_resolution = geofence_resolution
-        self.max_accel = max_accel
-        self.bits = bits
-        self.dim = dim
+        self.offset = offset # parameter to remove negative values for morton generation e.g. 10 if we allow acceleration up to -10m/s2
+        self.faktor_multiply = faktor_multiply # faktor to make an integer from floats and to adjust resolution
+        self.geofence_resolution = geofence_resolution #
+        self.max_accel = max_accel # maximum acceleration value
+        self.bits = bits # number of bits to describe one dimension
+        self.dim = dim # number of dimensions of data
 
     def __str__(self):
         return 'generate_masks_multithread ' + str(self.generate_masks_multithread) + os.linesep\
@@ -84,7 +84,108 @@ class Maneuver:
                + 'detected from ' + self.start_time + ' to ' + self.end_time
 
 
-def plot_Values(df, dff, df_relevant_values, driving_status_list, label):
+def plot_Values_paper(df, dff, df_relevant_values, driving_status_list, label, list_th):
+    fig, ax = plt.subplots(3, gridspec_kw={'height_ratios': [3, 3, 1]})
+
+    df_temp = dff.loc[(df.morton > 25000000000)]
+
+    #df['lon_round'] = round(df['lon'], 2)
+    #df['lat_round'] = round(df['lat'], 2)
+
+    df.plot(x='lon', y='lat', ax=ax[0], color='blue', label='position')
+    df_temp.plot.scatter(x='lon', y='lat', ax=ax[0], color = 'red')
+    # xticks(arange(1, 3.2, 0.2))
+
+    cnt = 0
+    for driving_status_temp in driving_status_list:
+        color = 'red'
+        for status in driving_status_temp:
+            maneuver_df_temp = df.loc[(df.ts > status[0]) & (df.ts < status[1])]
+            maneuver_df_temp.plot.scatter(x='lon', y='lat', ax=ax[0], color=color)
+            # ax[0].annotate("Maneuver: " + str(cnt), maneuver_df_temp.iloc[-1]['lon'], maneuver_df_temp.iloc[-1]['lat'])
+            cnt += 1
+
+    ax[0].set_xlabel('longitude')
+    ax[0].set_ylabel('latitude')
+    ax[0].grid()
+
+    ts_offset = df.iloc[0]['ts']
+    df['ts_plot'] = df['ts'] - ts_offset
+    df_temp['ts_plot'] = df_temp['ts'] - ts_offset
+    label['ts_plot'] = label['ts'] - ts_offset
+
+    df.plot(x='ts_plot', y=['accel_lon', 'accel_trans'], ax=ax[1], label=['acceleration x', 'acceleration y'])
+    df_temp.plot.scatter(x='ts_plot', y=['accel_lon'], ax=ax[1], color='red')
+    df_temp.plot.scatter(x='ts_plot', y=['accel_trans'], ax=ax[1], color='red')
+    # Kästen mit Maneuvern plotten
+
+    for list_temp in list_th:
+        ax[1].add_patch(
+            Rectangle((list_temp[0], -3), list_temp[1], 6, fill=False, color='green', lw=1.5))
+
+    # ax[1].xlabel('ts')
+    # ax[1].ylabel('acceleration[m/s^2]')
+
+    for driving_status_temp in driving_status_list:
+        color = 'red'
+        for status in driving_status_temp:
+            ax[1].add_patch(
+                Rectangle((status[0]-ts_offset, -4.8), (status[1]-ts_offset) - (status[0]-ts_offset), 9.6, fill=False, color='red', lw=1.5))
+
+    ax[1].set_xlabel('ts')
+    ax[1].set_ylabel('$m/s^{2}$')
+    ax[1].set_ylim(-8.1, 8.1)
+
+    min = df['morton'].min()
+    max = df['morton'].max()
+    # min = 12000000000
+    # max = 18000000000
+    # min = 0
+    # max = 30000000000
+    bins = 400
+
+    # Morton space statisch
+    ax[2].hist(df['morton'], bins=bins, range=(min, max), color='grey')
+    ax[2].hist(dff['morton'], bins=bins, range=(min, max), color='blue')
+    ax[2].hist(df_temp['morton'], bins=bins, range=(min, max), color='red')
+
+    ax[2].set_xlim(min, max)
+    ax[2].set_ylim(0, 1)
+
+    ax[2].set_xlabel('SFC value')
+    ax[2].set_ylabel('')
+
+    ax[2].set_ylim(0, 1)
+    ax[2].set_yticks(np.arange(0, 1.01, step=1))
+
+    # morton space zeitabhängig
+    # df.plot.scatter(x='ts', y='morton', color='blue', ax=ax[3])
+
+    for idx, row in label.iterrows():
+        ax[1].annotate(row['label'], (row['ts'], 2.5), rotation=60)
+
+    # add rote Punkte
+    for relevant_temp in df_relevant_values:
+        # zweiter Gtraph
+        # relevant_temp.plot.scatter(x='ts', y='accel_lon', color='red', ax=ax[1])
+        # relevant_temp.plot.scatter(x='ts', y='accel_trans', color='red', ax=ax[1])
+        # dritter Graph
+        # relevant_temp.plot(kind='scatter', x='accel_lon', y='accel_trans', color='red', ax=ax[2])
+        # vierter Graph
+        # morton statisch
+        ax[2].hist(relevant_temp['morton'], bins=bins, range=(min, max), color='red')
+        # morton zeitabhängig
+        # relevant_temp.plot.scatter(x='ts', y='morton', color='red', ax=ax[3])
+
+    fig.tight_layout()
+
+    # fig.set_dpi(250)
+    fig.set_size_inches(15.5, 8.5)
+    fig.savefig('braking.pdf')
+    plt.show()
+
+
+def plot_Values(df, dff, df_relevant_values, driving_status_list, label, list_th):
     fig, ax = plt.subplots(4, gridspec_kw={'height_ratios': [3, 3, 3, 1]})
 
     df.plot(x='lon', y='lat', ax=ax[0], color = 'blue')
@@ -101,6 +202,14 @@ def plot_Values(df, dff, df_relevant_values, driving_status_list, label):
 
     df.plot(x='ts', y=['accel_lon', 'accel_trans'], ax=ax[1])
     # Kästen mit Maneuvern plotten
+
+    for list_temp in list_th:
+        ax[1].add_patch(
+            Rectangle((list_temp[0], -3), list_temp[1], 6, fill=False, color='green', lw=1.5))
+
+    #ax[1].xlabel('ts')
+    #ax[1].ylabel('acceleration[m/s^2]')
+
 
     for driving_status_temp in driving_status_list:
         color = 'red'
@@ -131,7 +240,7 @@ def plot_Values(df, dff, df_relevant_values, driving_status_list, label):
     # df.plot.scatter(x='ts', y='morton', color='blue', ax=ax[3])
 
     for idx, row in label.iterrows():
-        ax[1].annotate(row['label'], (row['ts'], 2.5), rotation=60)
+        ax[1].annotate(row['label'], (row['ts_plot'], 2.5), rotation=60)
 
     # add rote Punkte
     for relevant_temp in df_relevant_values:
@@ -178,18 +287,67 @@ def filter_Morton(df, range_min, range_max):
     dff = df[((df['morton'] > range_min) &  # linke Grenze
               (df['morton'] < range_max))] # rechte Grenze
 
-
     dff = dff.sort_values(by='ts').reset_index()
     dff['diff_to_prev'] = dff['ts'].diff()
 
-    cnt_maneuver = len(dff[dff['diff_to_prev'] > 80000].index) + 1
+    #maneuver = dff[dff['diff_to_prev'] > 160000].index
+    dff = dff.reset_index()
 
-    date = dff['ts'].min() / 1000000
-    dt = datetime.datetime.fromtimestamp(date, datetime.timezone(datetime.timedelta(hours=1)))
+    list = []
 
-    print("First Maneuver detected at ", dt, " we detect ", cnt_maneuver, "maneuvers")
+    for i in range(0, len(dff)):
+        if(i == 0):
+            start_ts = dff['ts'].values[i]
+        else:
+            if ((160000 < abs(dff['ts'].values[i] - dff['ts'].values[i-1])) | (i == len(dff)-1)):
+                end_ts = dff['ts'].values[i-1]
+                duration = end_ts - start_ts
 
-    return dff
+                print(dff['ts'].values[i], "; ", dff['ts'].values[i-1], ";", abs(dff['ts'].values[i] - dff['ts'].values[i - 1]))
+
+                #print(duration, "; ", dff['ts'].values[i], ";", abs(dff['ts'].values[i] - dff['ts'].values[i-1]))
+
+                if(duration > 1000000) & (duration < 5000000):
+                    list.append((start_ts, end_ts))
+                start_ts = dff['ts'].values[i]
+
+    print("We detect", len(list), "maneuver.")
+    for temp in list:
+        print("Start", temp[0], "; end", temp[1])
+
+    fig, ax = plt.subplots(2, gridspec_kw={'height_ratios': [3, 1]})
+    df.plot(x='ts', y=['accel_lon', 'accel_trans'], ax=ax[0])
+    dff.plot.scatter(x='ts', y='accel_lon', color='red', ax=ax[0])
+    # Kästen mit Maneuvern plotten
+
+    for list_temp in list:
+        ax[0].add_patch(
+            Rectangle((list_temp[0], -3), list_temp[1]-list_temp[0], 6, fill=False, color='green', lw=1.5))
+
+    min = df['morton'].min()
+    max = df['morton'].max()
+    # min = 12000000000
+    # max = 18000000000
+    # min = 0
+    # max = 30000000000
+    bins = 400
+
+    # Morton space statisch
+    ax[1].hist(df['morton'], bins=bins, range=(min, max), color='blue')
+    ax[1].hist(dff['morton'], bins=bins, range=(min, max), color='green')
+    ax[1].set_xlim(min, max)
+    ax[1].set_ylim(0, 1)
+
+    plt.show()
+
+    #cnt_maneuver = len(dff[dff['diff_to_prev'] > 160000].index) + 1
+
+    #date = dff['ts'].min() / 1000000
+    #dt = datetime.datetime.fromtimestamp(date, datetime.timezone(datetime.timedelta(hours=1)))
+
+    # print("First Maneuver detected at ", dff['ts'].min(), " we detect ", cnt_maneuver, "maneuvers")
+
+    return list
 
 ################################################################
 
@@ -228,7 +386,7 @@ def calc_Morton(df, setup):
 ################################################################
 
 def generate_ts(df):
-
+    #restructure the time stamp to a unique format
     df['ts'] = (df['sampleTimeStamp.seconds'] * 1000000) + df['sampleTimeStamp.microseconds']
     df = df.drop(columns=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds'], axis=1)
 
@@ -278,11 +436,11 @@ def maskMortonSpace(dff, min_M, max_M, duration_min, duration_max, setup):
     # plt.show()
 
     df = dff[(dff['morton'] > min_M) & (dff['morton'] < max_M)]
-    df = remove_background_noise(df, setup)
+    #df = remove_background_noise(df, setup)
     df = df.sort_values(by='ts').reset_index()
     df['diff_to_prev'] = df['ts'].diff()
 
-    print(df)
+    #print(df)
 
     if len(df) > 0:
         start_ts = df['ts'][0]
@@ -642,6 +800,7 @@ def detect_maneuver_combination(df, maneuver_obj, min_time_between_same_driving_
         if morton == True:
             status_obj.maneuver_list = detect_single_maneuver(df, status_obj, min_time_between_same_driving_status)
         else:
+            # use different strategy (slower) to detect maneuvers
             status_obj.maneuver_list = detect_single_maneuver_bf(df, status_obj, min_time_between_same_driving_status, setup)
         #print("relevant value list", status_obj.relevant_values_list)
         #print("driving_status_list", status_obj.maneuver_list)
@@ -665,10 +824,14 @@ def detect_maneuver_combination(df, maneuver_obj, min_time_between_same_driving_
 
     relevant_values_list = []
 
-    for i in range(0,len(maneuver_obj.drivingStatus_list[0].maneuver_list)-1):
+    for i in range(0,len(maneuver_obj.drivingStatus_list[0].maneuver_list)): #-1
+        # recursive maneuver detection
         time_end, end = recursive_Maneuver_Search(0,i,maneuver_obj.drivingStatus_list)
         if end == True:
-            time_start = maneuver_obj.drivingStatus_list[0].maneuver_list[i][0]
+            if len(maneuver_obj.drivingStatus_list[0].maneuver_list) == 1:
+                time_start = maneuver_obj.drivingStatus_list[0].maneuver_list[0][0]
+            else:
+                time_start = maneuver_obj.drivingStatus_list[0].maneuver_list[i][0]
             #print(maneuver_obj.name, "detected from", time_start, "to", time_end, "; Duration:", time_end-time_start/1000000, "s")
             driving_maneuver_list.append([[time_start, time_end]])
             relevant_values_list.append(df[(df['ts'] > time_start) & (df['ts'] < time_end)])
@@ -737,10 +900,13 @@ if __name__ == '__main__':
 
     print("Välkommen!")
 
-    setup = Setup(True, 10, 100, 0.05, 10, 18, 2) # resolution: 0.0625
-    min_time_between_same_driving_status = 160000
+    # braking
+    # setup = Setup(True, 10, 10000, 0.05, 10, 18, 2) # resolution: 0.0625
+    setup = Setup(True, 10, 100, 0.05, 10, 18, 2)  # resolution: 0.0625
 
-    store = pd.HDFStore("searchMaskStorage.h5")
+    min_time_between_same_driving_status = 160000 # minimum duration of a single driving status
+
+    store = pd.HDFStore("searchMaskStorage.h5") #load database with search maks
 
     ################################################################
 
@@ -751,11 +917,21 @@ if __name__ == '__main__':
     #df = pd.read_csv('../Data/Ausschnitte/Hard_Braking/braking_cut_8_brakes.csv', sep=';',
     #                  usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed',
     #                           'accel_lon', 'accel_trans', 'accel_down'])
-    df = pd.read_csv('../Data/Ausschnitte/LaneChange/lanechange_20220921_fast_right.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
+    # Paper Braking Data!!
+    df = pd.read_csv('../Data/Ausschnitte/Hard_Braking/LC_eine_Runde.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
+    #df = pd.read_csv('../Data/Ausschnitte/Hard_Braking/Braking_eine_Runde.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
+
+
+    #df = pd.read_csv('../Data/Ausschnitte/LaneChange/lanechange_20220921_fast_right.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
+    #df = pd.read_csv('../Data/Ausschnitte/Ausschnitte/Hard_Braking/hard_braking_1.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
+    #df = pd.read_csv('../Data/Messfahrten/Frihamn/opendlv.device.gps.pos.Grp1Data-0.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
     #df = pd.read_csv('../Data/Ausschnitte/LaneChange/LC_in_Kurve.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
     #df = pd.read_csv('../Data/Ausschnitte/Noise/noise_straight_complete.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
     # df = pd.read_csv('../Data/Messfahrten/Lindholmen_2/opendlv.device.gps.pos.Grp1Data-0.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
+
+    # paper tour göteborg
     #df = pd.read_csv('../Data/Messfahrten/20220921/CSV/Motorway_Roundabout/opendlv.device.gps.pos.Grp1Data-0.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
+
     #df = pd.read_csv('../Data/Ausschnitte/Kreisfahrt/Kreis_rechts_im_Uhrzeigen_const_slow.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
     #df = pd.read_csv('../Data/Ausschnitte/Kreisfahrt/Kreis_links_gegen_Uhrzeigen.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
     #df = pd.read_csv('../Data/Ausschnitte/S_Kurve/S_Kurve_aus_rechtsskurve_kommend.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
@@ -764,7 +940,8 @@ if __name__ == '__main__':
     #df = pd.read_csv('../Data/Messfahrten/20220923/CSV/20220923_to_Boras/opendlv.device.gps.pos.Grp1Data-0_motorway_to_boras.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
     # label = pd.read_csv('../Data/Messfahrten/20220923/CSV/20220923_to_Boras/opendlv.system.LogMessage-999.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'description'])
     #df = pd.read_csv('../Data/Messfahrten/20220923/CSV/20220923_back_to_gothenburg/opendlv.device.gps.pos.Grp1Data-0.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
-    label = pd.read_csv('../Data/Messfahrten/20220923/CSV/20220923_back_to_gothenburg/opendlv.system.LogMessage-999.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'description'])
+    #label = pd.read_csv('../Data/Messfahrten/20220923/CSV/20220923_back_to_gothenburg/opendlv.system.LogMessage-999.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'description'])
+    #label = pd.read_csv('../Data/Messfahrten/20220921/CSV/Motorway_Roundabout/opendlv.system.LogMessage-999.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'description'])
 
     #noise
     #df = pd.read_csv('../Data/Ausschnitte/Noise/noise_straight_complete.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'lat', 'lon', 'speed', 'accel_lon', 'accel_trans', 'accel_down'])
@@ -773,43 +950,52 @@ if __name__ == '__main__':
     #df = pd.read_csv('C:/Users/Lukas Birkemeyer/Documents/Confidential_Promotion/Voyager/17T114115Z/opendlv.proxy.AccelerationReading-2.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'accelerationX', 'accelerationY', 'accelerationZ'])
     #df.rename(columns={'accelerationX': 'accel_lon', 'accelerationY': 'accel_trans', 'accelerationZ': 'accel_down'}, inplace=True)
 
-
     #label = pd.read_csv('../Data/Messfahrten/20220921/CSV/Testgelaende/Testgelaende_noise_LC/opendlv.system.LogMessage-999.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'description'])
     #label = pd.read_csv('../Data/Messfahrten/20220921/CSV/Testgelaende/Kreisfahrt/opendlv.system.LogMessage-999.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds', 'description'])
 
-    #label = pd.read_csv('../Data/Messfahrten/20220921/CSV/Motorway_Roundabout/opendlv.system.LogMessage-999.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds','description'])
+    # if .csv as no labels, the label will be empty but are required for programming reasons
+    label = pd.read_csv('../Data/Messfahrten/20220921/CSV/Motorway_Roundabout/opendlv.system.LogMessage-999.csv', sep=';', usecols=['sampleTimeStamp.seconds', 'sampleTimeStamp.microseconds','description'])
     label = generate_ts(label)
     label['label'] = label['description'].apply(lambda b: str(base64.b64decode(b)))
-    label = label[label['label'].str.contains("right") == True]
+    label = label[label['label'].str.contains("lc") == True]
     label = label.drop(columns='description')
 
     print("The length of data is:", len(df))
     ################################################################
-
+    #restructre ts
     df = generate_ts(df)
-
+    # drop data that is not in the scope
     df = precondition_data(df, setup.max_accel)
-
+    # calculte morton code for each database entry
     df = calc_Morton(df=df, setup=setup)
 
+    # first maneuver detector by defining minimum and maximum morton code # threashold query
+    list_th = filter_Morton(df, 25000000000, 35000000000);
+
+    # optionally remove noise e.g. data that is collect during straight forward drive
     print("Remove noise:")
-    dff = remove_background_noise(df, setup, store, [[-0.4, -0.45], [0.48, 0.45]]) #[-0.3, -0.25], [0.4, 0.25]
+    dff=df # deactivate filter
+    #dff = remove_background_noise(df, setup, store, [[-0.4, -0.45], [0.48, 0.45]]) #[-0.3, -0.25], [0.4, 0.25] # active filter
     print("Removed", round((len(df)-len(dff))/len(df)*100, 2), "% of Database (", len(df)-len(dff), "values).")
     #dff_temp = maskMortonSpace(dff, 2470000, 2580000, 2000000, 5000000, setup)
 
     ################################################################
     # Maneuver definition
     # LaneChange on straight road
-    rechtsKurve_LC_gerade = DrivingStatus(name='Kurve rechts', fence=[[-1.5, -5], [0.75, -0.75]], min_time=100000, max_time=30000000,
-                                min_gap=-200000, max_gap=2000000, setup=setup, color='red')
-    linksKurve_LC_gerade = DrivingStatus(name='Kurve links', fence=[[-1.5, 0.75], [0.75, 5]], min_time=100000, max_time=30000000,
-                                min_gap=-200000, max_gap=2000000, setup=setup, color='red')
 
+    # definition of search masks (multiple search masks)
+    rechtsKurve_LC_gerade = DrivingStatus(name='Kurve rechts', fence=[[-1.5, -5], [0.75, -0.75]], min_time=500000, max_time=3000000,
+                                min_gap=-200000, max_gap=2000000, setup=Setup(True, 10, 100, 0.05, 10, 18, 2), color='red')
+    linksKurve_LC_gerade = DrivingStatus(name='Kurve links', fence=[[-1.5, 0.75], [0.75, 5]], min_time=500000, max_time=3000000,
+                                min_gap=-200000, max_gap=2000000, setup=Setup(True, 10, 100, 0.05, 10, 18, 2), color='red')
+
+    # combine search masks to a maneuver (list)
     maneuver_LC_to_left_straight_list = []
     maneuver_LC_to_left_straight_list.append(linksKurve_LC_gerade)
     maneuver_LC_to_left_straight_list.append(rechtsKurve_LC_gerade)
     maneuver_LC_to_left_straight = Maneuver('LC_to_left_straight', maneuver_LC_to_left_straight_list)
 
+    # combine search masks to a maneuver (list) # second example
     maneuver_LC_to_right_straight_list = []
     maneuver_LC_to_right_straight_list.append(rechtsKurve_LC_gerade)
     maneuver_LC_to_right_straight_list.append(linksKurve_LC_gerade)
@@ -865,14 +1051,14 @@ if __name__ == '__main__':
     ################################################################
     # Maneuver definition
     # AEB
-    # Stop_1 = DrivingStatus(name='AEB1', fence=[[4.5, -4], [10, 4]], min_time=100000,
+    #Stop_1 = DrivingStatus(name='AEB1', fence=[[4.5, -4], [10, 4]], min_time=100000,
     #                                       max_time=30000000,
     #                                       min_gap=-30000000, max_gap=2000000, setup=setup, color='red')
-    #
-    # maneuver_AEB_list = []
-    # maneuver_AEB_list.append(Stop_1)
-    # #maneuver_AEB_list.append(Stop_1)
-    # maneuver_AEB = Maneuver('AEB', maneuver_AEB_list)
+
+    #maneuver_AEB_list = []
+    #maneuver_AEB_list.append(Stop_1)
+    #maneuver_AEB_list.append(Stop_1)
+    #maneuver_AEB = Maneuver('AEB', maneuver_AEB_list)
 
     #print("Define Search Mask.")
     #search_mask = generate_Search_Mask(geofence_list, setup, store)
@@ -883,13 +1069,11 @@ if __name__ == '__main__':
     #driving_status_list.append(detect_single_maneuver(df, startBremsen))
     # print(driving_status_list)
 
-    number_itteration = 1
     print("Maneuver Detection Vektor, Morton.")
     time_filter_start = time.time()
-    for i in tqdm(range(number_itteration)):
-        driving_maneuver_list, driving_status_list, relevant_values_list = detect_maneuver_combination(dff, maneuver_LC_to_right_straight, min_time_between_same_driving_status, True, setup)
+    driving_maneuver_list, driving_status_list, relevant_values_list = detect_maneuver_combination(dff, maneuver_LC_to_right_straight, min_time_between_same_driving_status, True, setup)
     time_filter_end = time.time()
-    print("Done: Time to detect",number_itteration,"maneuvers with morton index:", round(time_filter_end-time_filter_start, 10), "s")
+    print("Done: Time to detect maneuvers with morton index:", round(time_filter_end-time_filter_start, 10), "s")
 
     # print("Maneuver Detection Vektor, ts.")
     # time_filter_start = time.time()
@@ -898,12 +1082,15 @@ if __name__ == '__main__':
     # time_filter_end = time.time()
     # print("Done: Time to detect",number_itteration,"maneuvers with ts index:", round(time_filter_end - time_filter_start, 10), "s")
 
-
     ################################################################
-    plot_Values(df, dff, relevant_values_list, driving_maneuver_list, label)
+    print(driving_maneuver_list)
 
-    # print(driving_maneuver_list)
+    # two options to visualize data
+    #plot_Values(df, dff, relevant_values_list, driving_maneuver_list, label, list_th)
+    plot_Values_paper(df, dff, relevant_values_list, driving_maneuver_list, label, list_th)
 
+####################################
+    # temporal plot
     fig, ax = plt.subplots(2, gridspec_kw = {'height_ratios': [1, 7]})
 
     df.plot(x='ts', y=['accel_lon', 'accel_trans'], ax=ax[0])
@@ -919,6 +1106,7 @@ if __name__ == '__main__':
 
     df.plot.scatter(x='ts', y='morton', color='grey', ax=ax[1], s=15)
     dff.plot.scatter(x='ts', y='morton', color='blue', ax=ax[1], s=11)
+
     for relevant in relevant_values_list:
         relevant.plot.scatter(x='ts', y='morton', color='red', ax=ax[1], s=5)
 
